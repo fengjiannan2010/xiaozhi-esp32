@@ -11,6 +11,7 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "display/lcd_display.cc"
             "display/ssd1306_display.cc"
             "protocols/protocol.cc"
+			"servo/servo.cc"
             "iot/thing.cc"
             "iot/thing_manager.cc"
             "system_info.cc"
@@ -35,6 +36,8 @@ list(APPEND INCLUDE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/boards/common)
 # 根据 BOARD_TYPE 配置添加对应的板级文件
 if(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI)
     set(BOARD_TYPE "bread-compact-wifi")
+elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_BOT)
+    set(BOARD_TYPE "bread-compact-wifi-bot")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ML307)
     set(BOARD_TYPE "bread-compact-ml307")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ESP32)

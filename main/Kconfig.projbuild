@@ -52,6 +52,8 @@ choice BOARD_TYPE
         Board type. 开发板类型
     config BOARD_TYPE_BREAD_COMPACT_WIFI
         bool "面包板新版接线（WiFi）"
+    config BOARD_TYPE_BREAD_COMPACT_WIFI_BOT
+        bool "面包板新版接线（WiFi）+ BOT"
     config BOARD_TYPE_BREAD_COMPACT_WIFI_LCD
         bool "面包板新版接线（WiFi）+ LCD"
     config BOARD_TYPE_BREAD_COMPACT_ML307
@@ -131,7 +133,7 @@ choice BOARD_TYPE
 endchoice
 
 choice DISPLAY_OLED_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI || BOARD_TYPE_BREAD_COMPACT_ML307 || BOARD_TYPE_BREAD_COMPACT_ESP32
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI || BOARD_TYPE_BREAD_COMPACT_ML307 || BOARD_TYPE_BREAD_COMPACT_ESP32 || BOARD_TYPE_BREAD_COMPACT_WIFI_BOT
     prompt "OLED Type"
     default OLED_SSD1306_128X32
     help
@@ -186,4 +188,11 @@ config USE_AUDIO_PROCESSING
     depends on IDF_TARGET_ESP32S3 && USE_AFE
     help
         需要 ESP32 S3 与 AFE 支持
+
+config USE_SERVO
+	bool "启用舵机控制"
+    default y
+    depends on IDF_TARGET_ESP32S3 && BOARD_TYPE_BREAD_COMPACT_WIFI_BOT
+    help
+        需要 ESP32 S3 与 自定义IO支持	
 endmenu
