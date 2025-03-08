@@ -11,7 +11,6 @@ set(SOURCES "audio_codecs/audio_codec.cc"
             "display/lcd_display.cc"
             "display/ssd1306_display.cc"
             "protocols/protocol.cc"
-			"servo/servo.cc"
             "iot/thing.cc"
             "iot/thing_manager.cc"
             "system_info.cc"
@@ -40,6 +39,8 @@ elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_BOT)
     set(BOARD_TYPE "bread-compact-wifi-bot")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ML307)
     set(BOARD_TYPE "bread-compact-ml307")
+elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ML307_BOT)
+    set(BOARD_TYPE "bread-compact-ml307-bot")
 elseif(CONFIG_BOARD_TYPE_BREAD_COMPACT_ESP32)
     set(BOARD_TYPE "bread-compact-esp32")    
 elseif(CONFIG_BOARD_TYPE_ESP_BOX_3)

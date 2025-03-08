@@ -1,4 +1,4 @@
-#include "wifi_board.h"
+#include "ml307_board.h"
 #include "audio_codecs/no_audio_codec.h"
 #include "display/ssd1306_display.h"
 #include "system_reset.h"
@@ -9,16 +9,15 @@
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 
-#include <wifi_station.h>
 #include <esp_log.h>
 #include <driver/i2c_master.h>
 
-#define TAG "CompactWifiBotBoard"
+#define TAG "CompactMl307Board"
 
 LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
-class CompactWifiBotBoard : public WifiBoard {
+class CompactMl307BotBoard : public Ml307Board {
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
     Button boot_button_;
@@ -44,11 +43,7 @@ private:
 
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
-            auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
-            }
-            app.ToggleChatState();
+            Application::GetInstance().ToggleChatState();
         });
         touch_button_.OnPressDown([this]() {
             Application::GetInstance().StartListening();
@@ -93,15 +88,15 @@ private:
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Lamp"));
-        thing_manager.AddThing(iot::CreateThing("LightningDog"));
     }
 
 public:
-    CompactWifiBotBoard() :
+    CompactMl307BotBoard() : Ml307Board(ML307_TX_PIN, ML307_RX_PIN, 4096),
         boot_button_(BOOT_BUTTON_GPIO),
         touch_button_(TOUCH_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
+
         InitializeDisplayI2c();
         InitializeButtons();
         InitializeIot();
@@ -130,4 +125,4 @@ public:
     }
 };
 
-DECLARE_BOARD(CompactWifiBotBoard);
+DECLARE_BOARD(CompactMl307BotBoard);

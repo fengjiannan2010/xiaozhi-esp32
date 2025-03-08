@@ -6,7 +6,6 @@
 #include <esp_log.h>
 #include <cstring>
 #include "servocontrol.h"
-
 #include "boards/bread-compact-wifi-bot/config.h"
 
 #define TAG "LightningDog"
@@ -15,18 +14,20 @@ namespace iot {
 
 class LightningDog : public Thing {
 private:
-    light_mode_t light_mode_ = LIGHT_MODE_ALWAYS_ON;
     ServoControl servoControl_;
-    void SendUartMessage(const char * command_str) {
-        
-    }
-
+    
     void InitializeServo() {
         servoControl_.InitializeServo();
     }
 
+    static void servo_test_task(void *arg)
+    {
+        auto* dog = static_cast<LightningDog*>(arg);
+        dog->servoControl_.test0(0);
+    }
+
 public:
-    LightningDog() : Thing("LightningDog", "可爱的小柴犬：有腿可以移动；可以调整灯光效果；支持彩虹灯，闪光灯，随机灯"), light_mode_(LIGHT_MODE_ALWAYS_ON) {
+    LightningDog() : Thing("LightningDog", "萌萌小柴犬：可以做有趣的动作；可以向前走，向后退，向左转，向右转，立正，坐下，跳舞等动作") {
         InitializeServo();
 
         // 定义设备可以被远程执行的指令
@@ -57,11 +58,8 @@ public:
         methods_.AddMethod("Dance", "跳舞", ParameterList(), [this](const ParameterList& parameters) {
             servoControl_.dance();
         });
-
-        methods_.AddMethod("GoForward", "打开彩虹灯", ParameterList(), [this](const ParameterList& parameters) {
-            servoControl_.moveForward();
-            light_mode_ = LIGHT_MODE_MAX;
-        });
+        servoControl_.test0(3);
+        // xTaskCreate(servo_test_task, "servo_test_task", 2048, this, 5, NULL);
     }
 };
 

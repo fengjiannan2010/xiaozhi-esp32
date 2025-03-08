@@ -1,149 +1,190 @@
+
 #include "servocontrol.h"
 
 #define TAG "ServoControl"
 
-ServoControl::ServoControl() : servo_(nullptr) {
+ServoControl::ServoControl() {
     InitializeServo();
 }
 
 ServoControl::~ServoControl() {
     // 析构函数：清理资源
     ESP_LOGI(TAG, "ServoControl 对象已销毁，执行清理操作");
-    if (servo_) {
-        setInitialPosition(); // 将舵机复位到初始位置
-        delete servo_;        // 释放舵机控制器实例
-        servo_ = nullptr;     // 设置指针为空
-    }
+    iot_servo_deinit(LEDC_SPEED_MODE);
 }
 
 void ServoControl::InitializeServo() {
-    // 初始化舵机通道和 GPIO 引脚
-    channels_[0] = LEDC_CHANNEL_0;
-    channels_[1] = LEDC_CHANNEL_1;
-    channels_[2] = LEDC_CHANNEL_2;
-    channels_[3] = LEDC_CHANNEL_3;
-
-    pins_[0] = SERVO1_PIN;
-    pins_[1] = SERVO2_PIN;
-    pins_[2] = SERVO3_PIN;
-    pins_[3] = SERVO4_PIN;
-
     moveDelay_ = 150; // 移动延时 150 毫秒
-    count_ = sizeof(channels_) / sizeof(channels_[0]);
+    servo_config_t servo_cfg = {
+        .max_angle = 180,
+        .min_width_us = 500,
+        .max_width_us = 2500,
+        .freq = LEDC_FREQUENCY,
+        .timer_number = LEDC_TIMER,
+        .channels = {
+            .servo_pin = {
+                SERVO1_PIN,
+                SERVO2_PIN,
+                SERVO3_PIN,
+                SERVO4_PIN,
+            },
+            .ch = {
+                LEDC_CHANNEL1,
+                LEDC_CHANNEL2,
+                LEDC_CHANNEL3,
+                LEDC_CHANNEL4,
+            },
+        },
+        .channel_number = 4,
+    };
 
-    // 初始化舵机控制器实例
-    servo_ = new Servo(LEDC_TIMER, LEDC_SPEED_MODE, LEDC_RESOLUTION, LEDC_FREQUENCY);
-    if (servo_) {
-        servo_->init(channels_, pins_, count_);
-    } else {
-        ESP_LOGE(TAG, "舵机控制器初始化失败！");
-    }
-}
-
-void ServoControl::setInitialPosition() {
-    // 将所有舵机设置为 90°（中间位置）
-    for (uint8_t i = 0; i < count_; i++) {
-        servo_->setAngle(servo_->getChannel(i), 90);
-    }
-    vTaskDelay(pdMS_TO_TICKS(500)); // 延时 500 毫秒
-}
-
-void ServoControl::sitDown() {
-    printf("小狗坐下\n");
-    // 前腿舵机
-    servo_->setAngle(servo_->getChannel(0), 45); // 前腿弯曲
-    servo_->setAngle(servo_->getChannel(1), 45); // 前腿弯曲
-    // 后腿舵机
-    servo_->setAngle(servo_->getChannel(2), 135); // 后腿伸展
-    servo_->setAngle(servo_->getChannel(3), 135); // 后腿伸展
-    vTaskDelay(pdMS_TO_TICKS(500)); // 延时 0.5 秒
+    // Initialize the servo
+    TEST_ASSERT(ESP_OK == iot_servo_init(LEDC_SPEED_MODE, &servo_cfg));
 }
 
 // 小狗起立，将所有舵机设置为 90°（中间位置）
 void ServoControl::standUp() {
-    ESP_LOGE(TAG, "小狗起立，将所有舵机设置为 90°（中间位置）");
+    ESP_LOGI(TAG, "小狗起立，将所有舵机设置为 90°（中间位置）");
     // 将所有舵机设置为 90°（中间位置）
-    setInitialPosition();
+    iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 90);
+    iot_servo_write_angle_async(LEDC_SPEED_MODE, 1, 90);
+    iot_servo_write_angle_async(LEDC_SPEED_MODE, 2, 90);
+    iot_servo_write_angle_async(LEDC_SPEED_MODE, 3, 90);
+    iot_servo_sync_update(LEDC_SPEED_MODE);
 }
 
-void ServoControl::turnLeft() {
-    printf("小狗向左转\n");
+void ServoControl::sitDown() {
+    ESP_LOGI(TAG, "小狗坐下，前腿弯曲 45°，后腿伸展 135°");
     // 前腿舵机
-    servo_->setAngle(servo_->getChannel(0), 135); // 左前腿抬起
-    servo_->setAngle(servo_->getChannel(1), 45);  // 右前腿压低
+    iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 45);  // 前腿弯曲
+    iot_servo_write_angle_async(LEDC_SPEED_MODE, 1, 45);  // 前腿弯曲
+    iot_servo_sync_update(LEDC_SPEED_MODE);
     // 后腿舵机
-    servo_->setAngle(servo_->getChannel(2), 45);  // 左后腿压低
-    servo_->setAngle(servo_->getChannel(3), 135); // 右后腿抬起
-    vTaskDelay(pdMS_TO_TICKS(500)); // 延时 0.5 秒
+    iot_servo_write_angle_async(LEDC_SPEED_MODE, 2, 135); // 后腿伸展
+    iot_servo_write_angle_async(LEDC_SPEED_MODE, 3, 135); // 后腿伸展
+    iot_servo_sync_update(LEDC_SPEED_MODE);
+}
+
+void ServoControl::sitDownW() {
+    iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 180);
+    iot_servo_write_angle_async(LEDC_SPEED_MODE, 1, 0);
+    iot_servo_write_angle_async(LEDC_SPEED_MODE, 2, 0);
+    iot_servo_write_angle_async(LEDC_SPEED_MODE, 3, 180);
+    iot_servo_sync_update(LEDC_SPEED_MODE); // 确保同步更新
+}
+
+
+void ServoControl::turnLeft() {
+    ESP_LOGI(TAG, "小狗向左转");
+    // 前腿舵机
+    iot_servo_write_angle(LEDC_SPEED_MODE, 0, 135); // 左前腿抬起
+    iot_servo_write_angle(LEDC_SPEED_MODE, 1, 45);  // 右前腿压低
+    // 后腿舵机
+    iot_servo_write_angle(LEDC_SPEED_MODE, 2, 45);  // 左后腿压低
+    iot_servo_write_angle(LEDC_SPEED_MODE, 3, 135); // 右后腿抬起
+    vTaskDelay(pdMS_TO_TICKS(moveDelay_)); // 延时 150 毫秒
 }
 
 void ServoControl::turnRight() {
-    printf("小狗向右转\n");
+    ESP_LOGI(TAG, "小狗向右转");
     // 前腿舵机
-    servo_->setAngle(servo_->getChannel(0), 45);  // 左前腿压低
-    servo_->setAngle(servo_->getChannel(1), 135); // 右前腿抬起
+    iot_servo_write_angle(LEDC_SPEED_MODE, 0,  45);  // 左前腿压低
+    iot_servo_write_angle(LEDC_SPEED_MODE, 1, 135); // 右前腿抬起
     // 后腿舵机
-    servo_->setAngle(servo_->getChannel(2), 135); // 左后腿抬起
-    servo_->setAngle(servo_->getChannel(3), 45);  // 右后腿压低
-    vTaskDelay(pdMS_TO_TICKS(1000)); // 延时 1 秒
+    iot_servo_write_angle(LEDC_SPEED_MODE, 2,  135); // 左后腿抬起
+    iot_servo_write_angle(LEDC_SPEED_MODE, 3,  45);  // 右后腿压低
+    vTaskDelay(pdMS_TO_TICKS(moveDelay_)); // 延时 150 毫秒
 }
 
 void ServoControl::moveForward() {
-    printf("小狗前进\n");
+    ESP_LOGI(TAG,"小狗前进");
     // 前腿舵机
-    servo_->setAngle(servo_->getChannel(0), 135); // 左前腿抬起
-    servo_->setAngle(servo_->getChannel(1), 45);  // 右前腿压低
+    iot_servo_write_angle(LEDC_SPEED_MODE, 0, 135); // 左前腿抬起
+    iot_servo_write_angle(LEDC_SPEED_MODE, 1, 45);  // 右前腿压低
     vTaskDelay(pdMS_TO_TICKS((int)moveDelay_));
     // 改变屏幕显示
 
     // 后腿舵机
-    servo_->setAngle(servo_->getChannel(2), 45);  // 左后腿压低
-    servo_->setAngle(servo_->getChannel(3), 135); // 右后腿抬起
+    iot_servo_write_angle(LEDC_SPEED_MODE, 2, 45);  // 左后腿压低
+    iot_servo_write_angle(LEDC_SPEED_MODE, 3, 135); // 右后腿抬起
     vTaskDelay(pdMS_TO_TICKS((int)moveDelay_));
     // 改变屏幕显示
 
     // 交换动作
-    servo_->setAngle(servo_->getChannel(0), 45);  // 左前腿压低
-    servo_->setAngle(servo_->getChannel(1), 135); // 右前腿抬起
-    servo_->setAngle(servo_->getChannel(2), 135); // 左后腿抬起
-    servo_->setAngle(servo_->getChannel(3), 45);  // 右后腿压低
-    vTaskDelay(pdMS_TO_TICKS(500)); // 延时 0.5 秒
+    iot_servo_write_angle(LEDC_SPEED_MODE, 0,  45); // 左前腿压低
+    iot_servo_write_angle(LEDC_SPEED_MODE, 1, 135); // 右前腿抬起
+    iot_servo_write_angle(LEDC_SPEED_MODE, 2,  135); // 左后腿抬起
+    iot_servo_write_angle(LEDC_SPEED_MODE, 3,  45);  // 右后腿压低
+    vTaskDelay(pdMS_TO_TICKS(moveDelay_)); // 延时 150 毫秒
 }
 
 void ServoControl::moveBackward() {
-    printf("小狗后退\n");
+    ESP_LOGI(TAG,"小狗后退");
     // 前腿舵机
-    servo_->setAngle(servo_->getChannel(0), 45);  // 左前腿压低
-    servo_->setAngle(servo_->getChannel(1), 135); // 右前腿抬起
+    iot_servo_write_angle(LEDC_SPEED_MODE,(0), 45);  // 左前腿压低
+    iot_servo_write_angle(LEDC_SPEED_MODE,(1), 135); // 右前腿抬起
     vTaskDelay(pdMS_TO_TICKS((int)moveDelay_));
     // 后腿舵机
-    servo_->setAngle(servo_->getChannel(2), 135); // 左后腿抬起
-    servo_->setAngle(servo_->getChannel(3), 45);  // 右后腿压低
-    vTaskDelay(pdMS_TO_TICKS(500)); // 延时 0.5 秒
+    iot_servo_write_angle(LEDC_SPEED_MODE,(2), 135); // 左后腿抬起
+    iot_servo_write_angle(LEDC_SPEED_MODE,(3), 45);  // 右后腿压低
     vTaskDelay(pdMS_TO_TICKS((int)moveDelay_));
     
     // 交换动作
-    servo_->setAngle(servo_->getChannel(0), 135); // 左前腿抬起
-    servo_->setAngle(servo_->getChannel(1), 45);  // 右前腿压低
-    servo_->setAngle(servo_->getChannel(2), 45);  // 左后腿压低
-    servo_->setAngle(servo_->getChannel(3), 135); // 右后腿抬起
+    iot_servo_write_angle(LEDC_SPEED_MODE,(0), 135); // 左前腿抬起
+    iot_servo_write_angle(LEDC_SPEED_MODE,(1), 45);  // 右前腿压低
+    iot_servo_write_angle(LEDC_SPEED_MODE,(2), 45);  // 左后腿压低
+    iot_servo_write_angle(LEDC_SPEED_MODE,(3), 135); // 右后腿抬起
     vTaskDelay(pdMS_TO_TICKS(500)); // 延时 0.5 秒
 }
 
 void ServoControl::dance() {
-    printf("小狗跳舞\n");
+    ESP_LOGI(TAG,"小狗跳舞");
     // 前腿舵机
-    servo_->setAngle(servo_->getChannel(0), 135); // 左前腿抬起
-    servo_->setAngle(servo_->getChannel(1), 45);  // 右前腿压低
+    iot_servo_write_angle(LEDC_SPEED_MODE,(0), 135); // 左前腿抬起
+    iot_servo_write_angle(LEDC_SPEED_MODE,(1), 45);  // 右前腿压低
     // 后腿舵机
-    servo_->setAngle(servo_->getChannel(2), 45);  // 左后腿压低
-    servo_->setAngle(servo_->getChannel(3), 135); // 右后腿抬起
-    vTaskDelay(pdMS_TO_TICKS(500)); // 延时 0.5 秒
+    iot_servo_write_angle(LEDC_SPEED_MODE,(2), 45);  // 左后腿压低
+    iot_servo_write_angle(LEDC_SPEED_MODE,(3), 135); // 右后腿抬起
+    vTaskDelay(pdMS_TO_TICKS(moveDelay_)); // 延时 150 毫秒
 
     // 交换动作
-    servo_->setAngle(servo_->getChannel(0), 45);  // 左前腿压低
-    servo_->setAngle(servo_->getChannel(1), 135); // 右前腿抬起
-    servo_->setAngle(servo_->getChannel(2), 135); // 左后腿抬起
-    servo_->setAngle(servo_->getChannel(3), 45);  // 右后腿压低
-    vTaskDelay(pdMS_TO_TICKS(500)); // 延时 0.5 秒
+    iot_servo_write_angle(LEDC_SPEED_MODE,(0), 45);  // 左前腿压低
+    iot_servo_write_angle(LEDC_SPEED_MODE,(1), 135); // 右前腿抬起
+    iot_servo_write_angle(LEDC_SPEED_MODE,(2), 135); // 左后腿抬起
+    iot_servo_write_angle(LEDC_SPEED_MODE,(3), 45);  // 右后腿压低
+    vTaskDelay(pdMS_TO_TICKS(moveDelay_)); // 延时 150 毫秒
 }   
+
+void ServoControl::test0(u_int8_t channelIndex) {
+    ESP_LOGI(TAG, "测试代码");
+    // for (size_t i = 0; i < 10; i++)
+    // {   
+    //     ESP_LOGI(TAG, "Channel %d , 0 °",channelIndex);
+    //     iot_servo_write_angle(LEDC_SPEED_MODE, channelIndex,  0);
+    //     vTaskDelay(pdMS_TO_TICKS(1000));
+    //     ESP_LOGI(TAG, "Channel %d , 90 °",channelIndex);
+    //     iot_servo_write_angle(LEDC_SPEED_MODE, channelIndex,  90);
+    //     vTaskDelay(pdMS_TO_TICKS(1000));
+    // }
+
+    standUp();
+    vTaskDelay(pdMS_TO_TICKS(1000)); 
+    sitDownW();
+}
+
+//建议使用 GPIO18、GPIO19、GPIO20、GPIO21
+void ServoControl:: testGpio(gpio_num_t gpio_num_){
+    gpio_config_t io_conf;
+    io_conf.pin_bit_mask = (1ULL << gpio_num_);
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
+    io_conf.intr_type = GPIO_INTR_DISABLE;
+    esp_err_t err = gpio_config(&io_conf);
+    if (err == ESP_OK) {
+        ESP_LOGI("GPIO_TEST", "GPIO4 可用");
+    } else {
+        ESP_LOGE("GPIO_TEST", "GPIO4 不可用，错误代码: %d", err);
+    }
+}
+
