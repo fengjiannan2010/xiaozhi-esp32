@@ -16,19 +16,23 @@
 
 class ServoControl {
 private:
+    // Add these declarations
+    void SetServos(const std::array<float,4>& angles);
+    bool IsValidAngle(float angle) const;
     int32_t moveDelay_; // 移动延时
 public:
     ServoControl();
     ~ServoControl();
     void InitializeServo();
     void sitDown();
-    void sitDownW();
+    void lieDown();
+    void sitDownWX();
     void standUp();
-    void turnLeft();
-    void turnRight();
-    void moveForward();
-    void moveBackward();
-    void dance();
+    void turnLeft(int times);
+    void turnRight(int times);
+    void moveForward(int times);
+    void moveBackward(int times);
+    void dance(int times);
     void test0(u_int8_t channelIndex);
     void testGpio(gpio_num_t gpio_num_);
 };

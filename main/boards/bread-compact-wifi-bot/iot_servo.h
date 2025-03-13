@@ -34,14 +34,13 @@
      uint8_t channel_number;    /**< Total number of channels */
  } servo_config_t;
  
-
- typedef struct {
-    float base_freq;          // 基准频率
-    float adj_factor;         // 动态调整系数（根据负载算法计算）
-    uint32_t safe_min_freq;   // 安全下限频率（例45Hz）
-    uint32_t safe_max_freq;   // 安全上限频率（例55Hz） 
+// 在servo_config_t结构体后增加补偿参数
+typedef struct {
+    float base_freq;          // Base frequency (Hz)
+    float adj_factor;         // Dynamic adjustment factor
+    uint32_t safe_min_freq;   // Minimum safe frequency (e.g. 45Hz)
+    uint32_t safe_max_freq;   // Maximum safe frequency (e.g. 55Hz)
 } servo_freq_compensation_t;
-
 
  #ifdef __cplusplus
  extern "C" {
@@ -114,6 +113,22 @@
   */
  esp_err_t iot_servo_read_angle(ledc_mode_t speed_mode, uint8_t channel, float *angle);
  
+
+ /**
+  * @brief 设置频率补偿参数 / Set frequency compensation parameters
+  * @param comp 频率补偿配置结构体指针 / Pointer to compensation config
+  * @return esp_err_t 执行结果 / Execution result
+  */
+ esp_err_t iot_servo_set_freq_compensation(const servo_freq_compensation_t *comp);
+ 
+ /**
+  * @brief 获取频率补偿配置 / Get frequency compensation config
+  * @param comp 存储配置的结构体指针 / Pointer to store config
+  * @return esp_err_t 执行结果 / Execution result
+  */
+ esp_err_t iot_servo_get_freq_compensation(servo_freq_compensation_t *comp);
+
+
  #ifdef __cplusplus
  }
  #endif

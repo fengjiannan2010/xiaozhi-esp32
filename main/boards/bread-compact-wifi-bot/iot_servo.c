@@ -6,6 +6,7 @@
 
 #include "esp_log.h"
 #include "esp_err.h"
+#include <string.h>  // Add this line for memcpy()
 #include "driver/ledc.h"
 #include "iot_servo.h"
 
@@ -26,8 +27,20 @@ static const char *TAG = "servo";
 #define SERVO_FREQ_MIN 50
 #define SERVO_FREQ_MAX 400
 
+/* Add MAX/MIN macros for frequency clamping */
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
 static uint32_t g_full_duty = 0;
 static servo_config_t g_cfg[LEDC_SPEED_MODE_MAX] = {0};
+
+// 在文件顶部增加频率补偿结构体
+static servo_freq_compensation_t g_freq_comp = {
+    .base_freq = 50.0f,
+    .adj_factor = 1.0f,
+    .safe_min_freq = 45,
+    .safe_max_freq = 55
+};
 
 /**
  * @brief 根据角度计算 PWM duty 值
@@ -66,6 +79,11 @@ esp_err_t iot_servo_init(ledc_mode_t speed_mode, const servo_config_t *config)
                 "Servo channel number out of range", ESP_ERR_INVALID_ARG);
     SERVO_CHECK(config->freq <= SERVO_FREQ_MAX && config->freq >= SERVO_FREQ_MIN,
                 "Servo PWM frequency out of range", ESP_ERR_INVALID_ARG);
+
+
+    // 增加频率补偿初始化
+    g_freq_comp.base_freq = config->freq;
+    g_freq_comp.adj_factor = 1.0f;  // 默认不调整
 
     uint64_t pin_mask = 0;
     uint32_t ch_mask = 0;
@@ -191,5 +209,71 @@ esp_err_t iot_servo_read_angle(ledc_mode_t speed_mode, uint8_t channel, float *a
     uint32_t duty = ledc_get_duty(speed_mode, g_cfg[speed_mode].channels.ch[channel]);
     float a = calculate_angle(speed_mode, duty);
     *angle = a;
+    return ESP_OK;
+}
+
+// 新增频率补偿方法
+static void update_frequency_compensation(ledc_mode_t speed_mode)
+{
+    // 实现带保护机制的频率更新逻辑
+    float new_freq = g_freq_comp.base_freq * g_freq_comp.adj_factor;
+    new_freq = MAX(MIN(new_freq, g_freq_comp.safe_max_freq), g_freq_comp.safe_min_freq);
+    
+    // 记录调整前的配置
+    servo_config_t old_cfg = g_cfg[speed_mode];
+    
+    ledc_timer_config_t timer_cfg = {
+        .speed_mode = speed_mode,
+        .duty_resolution = SERVO_LEDC_INIT_BITS,
+        .timer_num = old_cfg.timer_number,
+        .freq_hz = (uint32_t)new_freq,
+        .clk_cfg = LEDC_AUTO_CLK
+    };
+    
+    esp_err_t ret = ledc_timer_config(&timer_cfg);
+    if(ret == ESP_OK) {
+        g_cfg[speed_mode].freq = (uint32_t)new_freq; // 更新配置缓存
+        ESP_LOGI(TAG, "Frequency adjusted: %.1fHz -> %"PRIu32"Hz", 
+                g_freq_comp.base_freq, g_cfg[speed_mode].freq);
+    } else {
+        ESP_LOGE(TAG, "Frequency adjust failed! Keep original %.1fHz", 
+                g_freq_comp.base_freq);
+    }
+}
+/**
+ * @brief 设置频率补偿参数 / Set frequency compensation parameters
+ * 
+ * @param comp 补偿配置结构体指针 / Pointer to compensation config struct
+ * @return 
+ *     - ESP_OK 成功 / Success
+ *     - ESP_ERR_INVALID_ARG 参数错误 / Invalid argument
+ */
+ esp_err_t iot_servo_set_freq_compensation(const servo_freq_compensation_t *comp)
+ {
+     SERVO_CHECK(comp != NULL, "Invalid comp pointer", ESP_ERR_INVALID_ARG);
+     SERVO_CHECK(comp->base_freq >= SERVO_FREQ_MIN && comp->base_freq <= SERVO_FREQ_MAX,
+                 "Base freq out of range", ESP_ERR_INVALID_ARG);
+     SERVO_CHECK(comp->safe_min_freq <= comp->safe_max_freq,
+                 "Invalid freq range", ESP_ERR_INVALID_ARG);
+ 
+     memcpy(&g_freq_comp, comp, sizeof(servo_freq_compensation_t));
+     update_frequency_compensation(LEDC_LOW_SPEED_MODE); // 假设默认使用低速模式
+     
+     return ESP_OK;
+ }
+
+ /**
+ * @brief 获取当前频率补偿配置 / Get current frequency compensation config
+ * 
+ * @param comp 存储配置的结构体指针 / Pointer to store config
+ * @return 
+ *     - ESP_OK 成功 / Success
+ *     - ESP_ERR_INVALID_ARG 参数错误 / Invalid argument
+ */
+esp_err_t iot_servo_get_freq_compensation(servo_freq_compensation_t *comp)
+{
+    SERVO_CHECK(comp != NULL, "Invalid comp pointer", ESP_ERR_INVALID_ARG);
+    
+    memcpy(comp, &g_freq_comp, sizeof(servo_freq_compensation_t));
     return ESP_OK;
 }

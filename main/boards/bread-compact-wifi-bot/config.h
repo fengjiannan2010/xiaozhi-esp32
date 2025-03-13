@@ -51,10 +51,10 @@
 #define DISPLAY_MIRROR_Y true
 
 // 定义 4 个舵机的 GPIO 引脚
-#define SERVO1_PIN GPIO_NUM_13
-#define SERVO2_PIN GPIO_NUM_14
-#define SERVO3_PIN GPIO_NUM_17
-#define SERVO4_PIN GPIO_NUM_18
+#define SERVO1_PIN GPIO_NUM_13      //左前
+#define SERVO2_PIN GPIO_NUM_14      //右前
+#define SERVO3_PIN GPIO_NUM_17      //左后
+#define SERVO4_PIN GPIO_NUM_18      //右后
 
 // 定义 LEDC 通道和定时器
 #define LEDC_TIMER LEDC_TIMER_3

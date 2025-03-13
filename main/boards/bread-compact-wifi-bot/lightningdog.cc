@@ -32,19 +32,19 @@ public:
 
         // 定义设备可以被远程执行的指令
         methods_.AddMethod("GoForward", "向前走", ParameterList(), [this](const ParameterList& parameters) {
-            servoControl_.moveForward();
+            servoControl_.moveForward(5);
         });
 
         methods_.AddMethod("GoBack", "向后退", ParameterList(), [this](const ParameterList& parameters) {
-            servoControl_.moveBackward();
+            servoControl_.moveBackward(5);
         });
 
         methods_.AddMethod("TurnLeft", "向左转", ParameterList(), [this](const ParameterList& parameters) {
-            servoControl_.turnLeft();
+            servoControl_.turnLeft(5);
         });
 
         methods_.AddMethod("TurnRight", "向右转", ParameterList(), [this](const ParameterList& parameters) {
-            servoControl_.turnRight();
+            servoControl_.turnRight(5);
         });
 
         methods_.AddMethod("StandUp", "立正", ParameterList(), [this](const ParameterList& parameters) {
@@ -55,10 +55,14 @@ public:
             servoControl_.sitDown();
         });
 
-        methods_.AddMethod("Dance", "跳舞", ParameterList(), [this](const ParameterList& parameters) {
-            servoControl_.dance();
+        methods_.AddMethod("SitDown", "趴下", ParameterList(), [this](const ParameterList& parameters) {
+            servoControl_.lieDown();
         });
-        servoControl_.test0(3);
+
+        methods_.AddMethod("Dance", "跳舞", ParameterList(), [this](const ParameterList& parameters) {
+            servoControl_.dance(5);
+        });
+        servoControl_.test0(0);
         // xTaskCreate(servo_test_task, "servo_test_task", 2048, this, 5, NULL);
     }
 };
