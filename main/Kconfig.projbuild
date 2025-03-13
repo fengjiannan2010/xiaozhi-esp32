@@ -15,8 +15,12 @@ choice
 
     config LANGUAGE_ZH_CN
         bool "Chinese"
+    config LANGUAGE_ZH_TW
+        bool "Chinese Traditional"
     config LANGUAGE_EN_US
         bool "English"
+    config LANGUAGE_JA_JP
+        bool "Japanese"
 endchoice
 
 
@@ -192,6 +196,18 @@ choice DISPLAY_LCD_TYPE
         bool "GC9A01, 分辨率240*240, 圆屏"
     config LCD_CUSTOM
         bool "自定义屏幕参数"
+endchoice
+
+choice DISPLAY_ESP32S3_KORVO2_V3
+    depends on BOARD_TYPE_ESP32S3_KORVO2_V3
+    prompt "ESP32S3_KORVO2_V3 LCD Type"
+    default LCD_ST7789
+    help
+        屏幕类型选择
+    config LCD_ST7789
+        bool "ST7789, 分辨率240*280"
+    config LCD_ILI9341
+        bool "ILI9341, 分辨率240*320"
 endchoice
 
 config USE_AUDIO_PROCESSOR
