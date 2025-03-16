@@ -55,7 +55,7 @@ public:
                    DisplayFonts fonts);
 };
 
-// // SPI LCD显示器
+// SPI LCD显示器
 class SpiLcdDisplay : public LcdDisplay {
 public:
     SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel,

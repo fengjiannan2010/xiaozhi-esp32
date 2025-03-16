@@ -284,75 +284,79 @@ void ServoControl::moveBackward(int times = 1)
     }
 }
 
+void ServoControl::swingBackAndForth(int times = 1)
+{
+    ESP_LOGI(TAG, "小狗前后摇摆");
+    for (int i = 0; i < times; i++)
+    {
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 135); // 左前腿向后
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 2, 135); // 左后腿向后
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 1, 45);  // 右前腿向后
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 3, 45);  // 右后腿向后
+        iot_servo_sync_update(LEDC_SPEED_MODE);               // 更新
+        vTaskDelay(pdMS_TO_TICKS((int)150));
+
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 90); // 左前腿向后
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 2, 90); // 左后腿向后
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 1, 90);  // 右前腿向后
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 3, 90);  // 右后腿向后
+        iot_servo_sync_update(LEDC_SPEED_MODE);               // 更新
+        vTaskDelay(pdMS_TO_TICKS((int)150));
+
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 45);  // 左前腿向前
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 2, 45);  // 左后腿向前
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 1, 135); // 右前腿向前
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 3, 135); // 右后腿向前
+        iot_servo_sync_update(LEDC_SPEED_MODE);               // 更新
+        vTaskDelay(pdMS_TO_TICKS((int)150));
+
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 90); // 左前腿向后
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 2, 90); // 左后腿向后
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 1, 90);  // 右前腿向后
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 3, 90);  // 右后腿向后
+        iot_servo_sync_update(LEDC_SPEED_MODE);               // 更新
+        vTaskDelay(pdMS_TO_TICKS((int)150));
+    }
+}
+
+void ServoControl::swingLeftAndRight(int times = 1){
+    ESP_LOGI(TAG, "小狗左右摇摆");
+    for (int i = 0; i < times; i++)
+    {
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 135); // 左前腿向后
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 2, 135); // 左后腿向后
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 1, 135);  // 右前腿向后
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 3, 135);  // 右后腿向后
+        iot_servo_sync_update(LEDC_SPEED_MODE);               // 更新
+        vTaskDelay(pdMS_TO_TICKS((int)150));
+
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 90); // 左前腿向后
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 2, 90); // 左后腿向后
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 1, 90);  // 右前腿向后
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 3, 90);  // 右后腿向后
+        iot_servo_sync_update(LEDC_SPEED_MODE);               // 更新
+        vTaskDelay(pdMS_TO_TICKS((int)150));
+
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 45);  // 左前腿向前
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 2, 45);  // 左后腿向前
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 1, 45); // 右前腿向前
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 3, 45); // 右后腿向前
+        iot_servo_sync_update(LEDC_SPEED_MODE);               // 更新
+        vTaskDelay(pdMS_TO_TICKS((int)150));
+
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 90); // 左前腿向后
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 2, 90); // 左后腿向后
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 1, 90);  // 右前腿向后
+        iot_servo_write_angle_async(LEDC_SPEED_MODE, 3, 90);  // 右后腿向后
+        iot_servo_sync_update(LEDC_SPEED_MODE);               // 更新
+        vTaskDelay(pdMS_TO_TICKS((int)150));
+    }
+
+}
+
 void ServoControl::dance(int times = 1)
 {
-    // ESP_LOGI(TAG, "小狗前后摇摆");
-    // for (int i = 0; i < times; i++)
-    // {
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 135); // 左前腿向后
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 2, 135); // 左后腿向后
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 1, 45);  // 右前腿向后
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 3, 45);  // 右后腿向后
-    //     iot_servo_sync_update(LEDC_SPEED_MODE);               // 更新
-    //     vTaskDelay(pdMS_TO_TICKS((int)150));
-
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 90); // 左前腿向后
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 2, 90); // 左后腿向后
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 1, 90);  // 右前腿向后
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 3, 90);  // 右后腿向后
-    //     iot_servo_sync_update(LEDC_SPEED_MODE);               // 更新
-    //     vTaskDelay(pdMS_TO_TICKS((int)150));
-
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 45);  // 左前腿向前
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 2, 45);  // 左后腿向前
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 1, 135); // 右前腿向前
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 3, 135); // 右后腿向前
-    //     iot_servo_sync_update(LEDC_SPEED_MODE);               // 更新
-    //     vTaskDelay(pdMS_TO_TICKS((int)150));
-
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 90); // 左前腿向后
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 2, 90); // 左后腿向后
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 1, 90);  // 右前腿向后
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 3, 90);  // 右后腿向后
-    //     iot_servo_sync_update(LEDC_SPEED_MODE);               // 更新
-    //     vTaskDelay(pdMS_TO_TICKS((int)150));
-    // }
-
-    // ESP_LOGI(TAG, "小狗左右摇摆");
-
-    // for (int i = 0; i < times; i++)
-    // {
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 135); // 左前腿向后
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 2, 135); // 左后腿向后
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 1, 135);  // 右前腿向后
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 3, 135);  // 右后腿向后
-    //     iot_servo_sync_update(LEDC_SPEED_MODE);               // 更新
-    //     vTaskDelay(pdMS_TO_TICKS((int)150));
-
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 90); // 左前腿向后
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 2, 90); // 左后腿向后
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 1, 90);  // 右前腿向后
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 3, 90);  // 右后腿向后
-    //     iot_servo_sync_update(LEDC_SPEED_MODE);               // 更新
-    //     vTaskDelay(pdMS_TO_TICKS((int)150));
-
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 45);  // 左前腿向前
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 2, 45);  // 左后腿向前
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 1, 45); // 右前腿向前
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 3, 45); // 右后腿向前
-    //     iot_servo_sync_update(LEDC_SPEED_MODE);               // 更新
-    //     vTaskDelay(pdMS_TO_TICKS((int)150));
-
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 90); // 左前腿向后
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 2, 90); // 左后腿向后
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 1, 90);  // 右前腿向后
-    //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 3, 90);  // 右后腿向后
-    //     iot_servo_sync_update(LEDC_SPEED_MODE);               // 更新
-    //     vTaskDelay(pdMS_TO_TICKS((int)150));
-    // }
-
     // ESP_LOGI(TAG, "小狗跳舞");
-
     // for (int i = 0; i < times; i++)
     // {
     //     iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 135); // 左前腿向后
@@ -413,7 +417,6 @@ void ServoControl::dance(int times = 1)
     // }
 
     ESP_LOGI(TAG, "小狗抬头");
-
     for (u_int8_t i = 0; i < 20; i++)
     {
         iot_servo_write_angle_async(LEDC_SPEED_MODE, 0, 90 - i);

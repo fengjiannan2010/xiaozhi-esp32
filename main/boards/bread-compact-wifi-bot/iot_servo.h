@@ -128,6 +128,7 @@ typedef struct {
   */
  esp_err_t iot_servo_get_freq_compensation(servo_freq_compensation_t *comp);
 
+ esp_err_t iot_servo_stop(ledc_mode_t speed_mode);
 
  #ifdef __cplusplus
  }
