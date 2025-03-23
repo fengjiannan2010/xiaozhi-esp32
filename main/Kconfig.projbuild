@@ -152,6 +152,8 @@ choice BOARD_TYPE
         bool "无名科技星智1.54(ML307)"
     config BOARD_TYPE_SENSECAP_WATCHER
         bool "SenseCAP Watcher"
+    config BOARD_TYPE_AI_SPEAKER_WIFI_LCD
+        bool "S3AiSpeaker（WiFi）+ LCD"
 endchoice
 
 choice DISPLAY_OLED_TYPE
@@ -167,7 +169,7 @@ choice DISPLAY_OLED_TYPE
 endchoice
 
 choice DISPLAY_LCD_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_ESP32_CGC
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_ESP32_CGC || BOARD_TYPE_AI_SPEAKER_WIFI_LCD
     prompt "LCD Type"
     default LCD_ST7789_240X320
     help
