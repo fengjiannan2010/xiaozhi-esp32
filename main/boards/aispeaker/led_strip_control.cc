@@ -52,7 +52,7 @@ LedStripControl::LedStripControl(CircularStrip* led_strip)
     });
 
     methods_.AddMethod("SetSingleColor", "设置单个灯颜色", ParameterList({
-        Parameter("index", "灯珠索引（0-7）", kValueTypeNumber, true),
+        Parameter("index", "灯珠索引（0-4）", kValueTypeNumber, true),
         Parameter("red", "红色（0-255）", kValueTypeNumber, true),
         Parameter("green", "绿色（0-255）", kValueTypeNumber, true),
         Parameter("blue", "蓝色（0-255）", kValueTypeNumber, true)
