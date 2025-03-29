@@ -190,6 +190,9 @@ void GpioLed::OnStateChanged() {
     auto& app = Application::GetInstance();
     auto device_state = app.GetDeviceState();
     switch (device_state) {
+        case kDeviceStateUnknown:
+            SetBrightness(IDLE_BRIGHTNESS);
+            TurnOn();
         case kDeviceStateStarting:
             SetBrightness(DEFAULT_BRIGHTNESS);
             StartContinuousBlink(100);
@@ -201,7 +204,6 @@ void GpioLed::OnStateChanged() {
         case kDeviceStateIdle:
             SetBrightness(IDLE_BRIGHTNESS);
             TurnOn();
-            // TurnOff();
             break;
         case kDeviceStateConnecting:
             SetBrightness(DEFAULT_BRIGHTNESS);
@@ -213,7 +215,6 @@ void GpioLed::OnStateChanged() {
             } else {
                 SetBrightness(LOW_BRIGHTNESS);
             }
-            // TurnOn();
             StartFadeTask();
             break;
         case kDeviceStateSpeaking:

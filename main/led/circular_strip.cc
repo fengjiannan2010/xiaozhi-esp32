@@ -186,6 +186,10 @@ void CircularStrip::OnStateChanged() {
     auto& app = Application::GetInstance();
     auto device_state = app.GetDeviceState();
     switch (device_state) {
+        case kDeviceStateUnknown:{
+            FadeOut(50);
+            break;
+        }
         case kDeviceStateStarting: {
             StripColor low = { 0, 0, 0 };
             StripColor high = { low_brightness_, low_brightness_, default_brightness_ };
