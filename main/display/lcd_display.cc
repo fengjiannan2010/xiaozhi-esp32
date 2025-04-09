@@ -8,6 +8,7 @@
 #include "assets/lang_config.h"
 #include <cstring>
 #include "settings.h"
+#include <unordered_map>
 
 #include "board.h"
 
@@ -369,169 +370,123 @@ void LcdDisplay::SetupUI() {
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
 }
 
+// 计算聊天气泡宽度
+lv_coord_t LcdDisplay::CalculateBubbleWidth(const char* content) {
+    if (content == nullptr) return 20; // 默认最小宽度
+
+    lv_coord_t text_width = lv_txt_get_width(content, strlen(content), fonts_.text_font, 0);
+    lv_coord_t max_width = LV_HOR_RES * 85 / 100 - 16;  // 屏幕宽度的85%
+    lv_coord_t min_width = 20;
+
+    // 确保宽度在最小和最大范围内
+    return std::max(min_width, std::min(text_width, max_width));
+}
+
+void LcdDisplay::SetTransparentContainerStyle(lv_obj_t* container) {
+    if (container == nullptr) return;
+
+    lv_obj_set_style_bg_opa(container, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(container, 0, 0);
+    lv_obj_set_style_pad_all(container, 0, 0);
+}
+
+// 更新聊天气泡样式
+void LcdDisplay::UpdateMessageBubbleStyle(lv_obj_t* msg_bubble, const char* role) {
+    if (msg_bubble == nullptr || role == nullptr) return;
+
+    // 根据气泡类型应用样式
+    if (strcmp(role, "user") == 0) {
+        lv_obj_set_style_bg_color(msg_bubble, current_theme.user_bubble, 0);
+        lv_obj_set_user_data(msg_bubble, (void*)role);
+        lv_obj_set_style_flex_grow(msg_bubble, 0, 0);
+    } else if (strcmp(role, "assistant") == 0) {
+        lv_obj_set_style_bg_color(msg_bubble, current_theme.assistant_bubble, 0);
+        lv_obj_set_user_data(msg_bubble, (void*)role);
+        lv_obj_set_style_flex_grow(msg_bubble, 0, 0);
+    } else if (strcmp(role, "system") == 0) {
+        lv_obj_set_style_bg_color(msg_bubble, current_theme.system_bubble, 0);
+        lv_obj_set_style_text_color(msg_bubble, current_theme.system_text, 0);
+        lv_obj_set_user_data(msg_bubble, (void*)role);
+        lv_obj_set_style_flex_grow(msg_bubble, 0, 0);
+    }
+
+    lv_obj_set_style_border_width(msg_bubble, 1, 0);
+    lv_obj_set_style_border_color(msg_bubble, current_theme.border, 0);
+}
+
+void LcdDisplay::UpdateMessageTextStyle(lv_obj_t* msg_text, const char* role) {
+    if (msg_text == nullptr || role == nullptr) return;
+
+   // Set alignment and style based on message role
+    if (strcmp(role, "user") == 0) {
+        // Set text color for contrast
+        lv_obj_set_style_text_color(msg_text, current_theme.text, 0);
+    } else if (strcmp(role, "assistant") == 0) {
+        // Set text color for contrast
+        lv_obj_set_style_text_color(msg_text, current_theme.text, 0);
+    } else if (strcmp(role, "system") == 0) {
+        // Set text color for contrast
+        lv_obj_set_style_text_color(msg_text, current_theme.system_text, 0);
+    }
+}
+
 #define  MAX_MESSAGES 20
 void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     DisplayLockGuard lock(this);
-    if (content_ == nullptr) {
-        return;
-    }
-    
     //避免出现空的消息框
-    if(strlen(content) == 0) return;
+    if (content_ == nullptr || strlen(content) == 0) return;
     
     // 检查消息数量是否超过限制
     uint32_t child_count = lv_obj_get_child_cnt(content_);
     if (child_count >= MAX_MESSAGES) {
-        // 删除最早的消息（第一个子对象）
         lv_obj_t* first_child = lv_obj_get_child(content_, 0);
-        lv_obj_t* last_child = lv_obj_get_child(content_, child_count - 1);
-        if (first_child != nullptr) {
-            lv_obj_del(first_child);
-        }
-        // Scroll to the last message immediately
-        if (last_child != nullptr) {
-            lv_obj_scroll_to_view_recursive(last_child, LV_ANIM_OFF);
-        }
+        if (first_child != nullptr) lv_obj_del(first_child);
     }
     
-    // Create a message bubble
+    // 创建消息气泡
     lv_obj_t* msg_bubble = lv_obj_create(content_);
     lv_obj_set_style_radius(msg_bubble, 8, 0);
     lv_obj_set_scrollbar_mode(msg_bubble, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_style_border_width(msg_bubble, 1, 0);
-    lv_obj_set_style_border_color(msg_bubble, current_theme.border, 0);
     lv_obj_set_style_pad_all(msg_bubble, 8, 0);
 
-    // Create the message text
-    lv_obj_t* msg_text = lv_label_create(msg_bubble);
-    lv_label_set_text(msg_text, content);
-    
-    // 计算文本实际宽度
-    lv_coord_t text_width = lv_txt_get_width(content, strlen(content), fonts_.text_font, 0);
-
-    // 计算气泡宽度
-    lv_coord_t max_width = LV_HOR_RES * 85 / 100 - 16;  // 屏幕宽度的85%
-    lv_coord_t min_width = 20;  
-    lv_coord_t bubble_width;
-    
-    // 确保文本宽度不小于最小宽度
-    if (text_width < min_width) {
-        text_width = min_width;
-    }
-
-    // 如果文本宽度小于最大宽度，使用文本宽度
-    if (text_width < max_width) {
-        bubble_width = text_width; 
-    } else {
-        bubble_width = max_width;
-    }
-    
-    // 设置消息文本的宽度
-    lv_obj_set_width(msg_text, bubble_width);  // 减去padding
-    lv_label_set_long_mode(msg_text, LV_LABEL_LONG_WRAP);
-    lv_obj_set_style_text_font(msg_text, fonts_.text_font, 0);
-
     // 设置气泡宽度
+    lv_coord_t bubble_width = CalculateBubbleWidth(content);
     lv_obj_set_width(msg_bubble, bubble_width);
     lv_obj_set_height(msg_bubble, LV_SIZE_CONTENT);
+    // 更新气泡样式
+    UpdateMessageBubbleStyle(msg_bubble, role);
 
-    // Set alignment and style based on message role
-    if (strcmp(role, "user") == 0) {
-        // User messages are right-aligned with green background
-        lv_obj_set_style_bg_color(msg_bubble, current_theme.user_bubble, 0);
-        // Set text color for contrast
-        lv_obj_set_style_text_color(msg_text, current_theme.text, 0);
-        
-        // 设置自定义属性标记气泡类型
-        lv_obj_set_user_data(msg_bubble, (void*)"user");
-        
-        // Set appropriate width for content
-        lv_obj_set_width(msg_bubble, LV_SIZE_CONTENT);
-        lv_obj_set_height(msg_bubble, LV_SIZE_CONTENT);
-        
-        // Don't grow
-        lv_obj_set_style_flex_grow(msg_bubble, 0, 0);
-    } else if (strcmp(role, "assistant") == 0) {
-        // Assistant messages are left-aligned with white background
-        lv_obj_set_style_bg_color(msg_bubble, current_theme.assistant_bubble, 0);
-        // Set text color for contrast
-        lv_obj_set_style_text_color(msg_text, current_theme.text, 0);
-        
-        // 设置自定义属性标记气泡类型
-        lv_obj_set_user_data(msg_bubble, (void*)"assistant");
-        
-        // Set appropriate width for content
-        lv_obj_set_width(msg_bubble, LV_SIZE_CONTENT);
-        lv_obj_set_height(msg_bubble, LV_SIZE_CONTENT);
-        
-        // Don't grow
-        lv_obj_set_style_flex_grow(msg_bubble, 0, 0);
-    } else if (strcmp(role, "system") == 0) {
-        // System messages are center-aligned with light gray background
-        lv_obj_set_style_bg_color(msg_bubble, current_theme.system_bubble, 0);
-        // Set text color for contrast
-        lv_obj_set_style_text_color(msg_text, current_theme.system_text, 0);
-        
-        // 设置自定义属性标记气泡类型
-        lv_obj_set_user_data(msg_bubble, (void*)"system");
-        
-        // Set appropriate width for content
-        lv_obj_set_width(msg_bubble, LV_SIZE_CONTENT);
-        lv_obj_set_height(msg_bubble, LV_SIZE_CONTENT);
-        
-        // Don't grow
-        lv_obj_set_style_flex_grow(msg_bubble, 0, 0);
-    }
-    
-    // Create a full-width container for user messages to ensure right alignment
-    if (strcmp(role, "user") == 0) {
-        // Create a full-width container
-        lv_obj_t* container = lv_obj_create(content_);
+    // 创建消息文本
+    lv_obj_t* msg_text = lv_label_create(msg_bubble);
+    lv_label_set_text(msg_text, content);
+    lv_obj_set_width(msg_text, bubble_width);
+    lv_label_set_long_mode(msg_text, LV_LABEL_LONG_WRAP);
+    lv_obj_set_style_text_font(msg_text, fonts_.text_font, 0);
+    // 更新消息样式
+    UpdateMessageTextStyle(msg_text, role);
+
+    // 创建容器并设置对齐方式
+    lv_obj_t* container = nullptr;
+    if (strcmp(role, "user") == 0 || strcmp(role, "system") == 0) {
+        container = lv_obj_create(content_);
         lv_obj_set_width(container, LV_HOR_RES);
         lv_obj_set_height(container, LV_SIZE_CONTENT);
-        
-        // Make container transparent and borderless
-        lv_obj_set_style_bg_opa(container, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(container, 0, 0);
-        lv_obj_set_style_pad_all(container, 0, 0);
-        
-        // Move the message bubble into this container
+        SetTransparentContainerStyle(container);
         lv_obj_set_parent(msg_bubble, container);
-        
-        // Right align the bubble in the container
-        lv_obj_align(msg_bubble, LV_ALIGN_RIGHT_MID, -25, 0);
-        
-        // Auto-scroll to this container
-        lv_obj_scroll_to_view_recursive(container, LV_ANIM_ON);
-    } else if (strcmp(role, "system") == 0) {
-        // 为系统消息创建全宽容器以确保居中对齐
-        lv_obj_t* container = lv_obj_create(content_);
-        lv_obj_set_width(container, LV_HOR_RES);
-        lv_obj_set_height(container, LV_SIZE_CONTENT);
-        
-        // 使容器透明且无边框
-        lv_obj_set_style_bg_opa(container, LV_OPA_TRANSP, 0);
-        lv_obj_set_style_border_width(container, 0, 0);
-        lv_obj_set_style_pad_all(container, 0, 0);
-        
-        // 将消息气泡移入此容器
-        lv_obj_set_parent(msg_bubble, container);
-        
-        // 将气泡居中对齐在容器中
-        lv_obj_align(msg_bubble, LV_ALIGN_CENTER, 0, 0);
-        
-        // 自动滚动底部
+
+        if (strcmp(role, "user") == 0) {
+            lv_obj_align(msg_bubble, LV_ALIGN_RIGHT_MID, -25, 0);
+        } else {
+            lv_obj_align(msg_bubble, LV_ALIGN_CENTER, 0, 0);
+        }
+
         lv_obj_scroll_to_view_recursive(container, LV_ANIM_ON);
     } else {
-        // For assistant messages
-        // Left align assistant messages
         lv_obj_align(msg_bubble, LV_ALIGN_LEFT_MID, 0, 0);
-
-        // Auto-scroll to the message bubble
         lv_obj_scroll_to_view_recursive(msg_bubble, LV_ANIM_ON);
     }
-    
-    // Store reference to the latest message label
+
+    // 存储最新消息标签的引用
     chat_message_label_ = msg_text;
 }
 #else
@@ -635,50 +590,40 @@ void LcdDisplay::SetupUI() {
 }
 #endif
 
+static const std::unordered_map<std::string, std::string> emotion_map = {
+    {"neutral", "😶"},
+    {"happy", "🙂"},
+    {"laughing", "😆"},
+    {"funny", "😂"},
+    {"sad", "😔"},
+    {"angry", "😠"},
+    {"crying", "😭"},
+    {"loving", "😍"},
+    {"embarrassed", "😳"},
+    {"surprised", "😯"},
+    {"shocked", "😱"},
+    {"thinking", "🤔"},
+    {"winking", "😉"},
+    {"cool", "😎"},
+    {"relaxed", "😌"},
+    {"delicious", "🤤"},
+    {"kissy", "😘"},
+    {"confident", "😏"},
+    {"sleepy", "😴"},
+    {"silly", "😜"},
+    {"confused", "🙄"}
+};
+
 void LcdDisplay::SetEmotion(const char* emotion) {
-    struct Emotion {
-        const char* icon;
-        const char* text;
-    };
-
-    static const std::vector<Emotion> emotions = {
-        {"😶", "neutral"},
-        {"🙂", "happy"},
-        {"😆", "laughing"},
-        {"😂", "funny"},
-        {"😔", "sad"},
-        {"😠", "angry"},
-        {"😭", "crying"},
-        {"😍", "loving"},
-        {"😳", "embarrassed"},
-        {"😯", "surprised"},
-        {"😱", "shocked"},
-        {"🤔", "thinking"},
-        {"😉", "winking"},
-        {"😎", "cool"},
-        {"😌", "relaxed"},
-        {"🤤", "delicious"},
-        {"😘", "kissy"},
-        {"😏", "confident"},
-        {"😴", "sleepy"},
-        {"😜", "silly"},
-        {"🙄", "confused"}
-    };
-    
-    // 查找匹配的表情
-    std::string_view emotion_view(emotion);
-    auto it = std::find_if(emotions.begin(), emotions.end(),
-        [&emotion_view](const Emotion& e) { return e.text == emotion_view; });
-
     DisplayLockGuard lock(this);
     if (emotion_label_ == nullptr) {
         return;
     }
 
-    // 如果找到匹配的表情就显示对应图标，否则显示默认的neutral表情
     lv_obj_set_style_text_font(emotion_label_, fonts_.emoji_font, 0);
-    if (it != emotions.end()) {
-        lv_label_set_text(emotion_label_, it->icon);
+    auto it = emotion_map.find(emotion);
+    if (it != emotion_map.end()) {
+        lv_label_set_text(emotion_label_, it->second.c_str());
     } else {
         lv_label_set_text(emotion_label_, "😶");
     }

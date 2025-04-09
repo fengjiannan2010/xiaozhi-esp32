@@ -23,6 +23,11 @@ protected:
     DisplayFonts fonts_;
 
     void SetupUI();
+
+    lv_coord_t CalculateBubbleWidth(const char* content);
+    void UpdateMessageBubbleStyle(lv_obj_t* bubble, const char* bubble_type);
+    void UpdateMessageTextStyle(lv_obj_t* msg_text, const char* role);
+    void SetTransparentContainerStyle(lv_obj_t* container);
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
 
