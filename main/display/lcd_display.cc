@@ -75,6 +75,19 @@ static const ThemeColors LIGHT_THEME = {
     .low_battery = LIGHT_LOW_BATTERY_COLOR
 };
 
+// Define frame animation theme colors
+static const ThemeColors FRAME_ANIMATION_THEME = {
+    .background = lv_color_hex(0x0A0E3B),
+    .text = lv_color_white(),
+    .chat_background = DARK_CHAT_BACKGROUND_COLOR,
+    .user_bubble = DARK_USER_BUBBLE_COLOR,
+    .assistant_bubble = DARK_ASSISTANT_BUBBLE_COLOR,
+    .system_bubble = DARK_SYSTEM_BUBBLE_COLOR,
+    .system_text = DARK_SYSTEM_TEXT_COLOR,
+    .border = DARK_BORDER_COLOR,
+    .low_battery = DARK_LOW_BATTERY_COLOR
+};
+
 // Current theme - initialize based on default config
 static ThemeColors current_theme = LIGHT_THEME;
 
@@ -226,8 +239,11 @@ RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
 }
 
 LcdDisplay::~LcdDisplay() {
-    // 然后再清理 LVGL 对象
+    // 添加递归删除逻辑
     if (content_ != nullptr) {
+        while (lv_obj_get_child_cnt(content_) > 0) {
+            lv_obj_del(lv_obj_get_child(content_, 0));
+        }
         lv_obj_del(content_);
     }
     if (status_bar_ != nullptr) {
@@ -368,6 +384,10 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_color(low_battery_label, lv_color_white(), 0);
     lv_obj_center(low_battery_label);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+    //创建电量弹窗
+    CreateLowBatteryPopup(screen);
+
+    UpdateChatBubbleStyles();
 }
 
 // 计算聊天气泡宽度
@@ -430,17 +450,39 @@ void LcdDisplay::UpdateMessageTextStyle(lv_obj_t* msg_text, const char* role) {
     }
 }
 
+void LcdDisplay::CreateAndAlignContainer(lv_obj_t* parent, lv_obj_t* child, const char* role) {
+    lv_obj_t* container = lv_obj_create(parent);
+    lv_obj_set_width(container, LV_HOR_RES);
+    lv_obj_set_height(container, LV_SIZE_CONTENT);
+    SetTransparentContainerStyle(container);
+    lv_obj_set_parent(child, container);
+
+    if (strcmp(role, "user") == 0) {
+        lv_obj_align(child, LV_ALIGN_RIGHT_MID, -25, 0);
+    } else if (strcmp(role, "system") == 0) {
+        lv_obj_align(child, LV_ALIGN_CENTER, 0, 0);
+    }
+    lv_obj_scroll_to_view_recursive(container, LV_ANIM_ON);
+}
+
 #define  MAX_MESSAGES 20
 void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     DisplayLockGuard lock(this);
+    if (content_ == nullptr) {
+        ESP_LOGW(TAG, "Content area is null, cannot set chat message.");
+        return;
+    }
     //避免出现空的消息框
-    if (content_ == nullptr || strlen(content) == 0) return;
+    if (strlen(content) == 0) return;
     
     // 检查消息数量是否超过限制
     uint32_t child_count = lv_obj_get_child_cnt(content_);
     if (child_count >= MAX_MESSAGES) {
         lv_obj_t* first_child = lv_obj_get_child(content_, 0);
-        if (first_child != nullptr) lv_obj_del(first_child);
+        if (first_child != nullptr) {
+            lv_obj_del(first_child); 
+            ESP_LOGD(TAG, "Deleted oldest message (container:%d)", lv_obj_get_child_cnt(first_child) > 0);
+        }
     }
     
     // 创建消息气泡
@@ -466,21 +508,8 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     UpdateMessageTextStyle(msg_text, role);
 
     // 创建容器并设置对齐方式
-    lv_obj_t* container = nullptr;
     if (strcmp(role, "user") == 0 || strcmp(role, "system") == 0) {
-        container = lv_obj_create(content_);
-        lv_obj_set_width(container, LV_HOR_RES);
-        lv_obj_set_height(container, LV_SIZE_CONTENT);
-        SetTransparentContainerStyle(container);
-        lv_obj_set_parent(msg_bubble, container);
-
-        if (strcmp(role, "user") == 0) {
-            lv_obj_align(msg_bubble, LV_ALIGN_RIGHT_MID, -25, 0);
-        } else {
-            lv_obj_align(msg_bubble, LV_ALIGN_CENTER, 0, 0);
-        }
-
-        lv_obj_scroll_to_view_recursive(container, LV_ANIM_ON);
+        CreateAndAlignContainer(content_, msg_bubble, role);
     } else {
         lv_obj_align(msg_bubble, LV_ALIGN_LEFT_MID, 0, 0);
         lv_obj_scroll_to_view_recursive(msg_bubble, LV_ANIM_ON);
@@ -489,6 +518,128 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
     // 存储最新消息标签的引用
     chat_message_label_ = msg_text;
 }
+
+void LcdDisplay::UpdateChatBubbleStyles() {
+    if (content_ == nullptr) return;
+
+    uint32_t child_count = lv_obj_get_child_cnt(content_);
+    for (uint32_t i = 0; i < child_count; i++) {
+        lv_obj_t* bubble = lv_obj_get_child(content_, i);
+        if (bubble == nullptr) continue;
+
+        void* bubble_type_ptr = lv_obj_get_user_data(bubble);
+        if (bubble_type_ptr != nullptr) {
+            const char* bubble_type = static_cast<const char*>(bubble_type_ptr);
+            UpdateMessageBubbleStyle(bubble, bubble_type);
+        }
+    }
+}
+
+#elif CONFIG_USE_FRAME_ANIMATION_STYLE
+void LcdDisplay::SetupUI() {
+    // 上锁，防止显示操作冲突
+    DisplayLockGuard lock(this);
+
+    // 获取当前活动屏幕
+    auto screen = lv_screen_active();
+    
+    // 设置默认字体和颜色样式
+    lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
+    lv_obj_set_style_text_color(screen, current_theme.text, 0);
+    lv_obj_set_style_bg_color(screen, current_theme.background, 0);
+
+    /* 创建容器 */
+    container_ = lv_obj_create(screen); // 在屏幕上创建容器对象
+    lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES); // 设置容器大小为屏幕大小
+    lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN); // 设置容器布局为垂直排列（列）
+    lv_obj_set_style_pad_all(container_, 0, 0); // 所有内边距设置为0
+    lv_obj_set_style_border_width(container_, 0, 0); // 无边框
+    lv_obj_set_style_pad_row(container_, 0, 0); // 行间距为0
+    lv_obj_set_style_bg_color(container_, current_theme.background, 0); // 背景色
+    lv_obj_set_style_border_color(container_, current_theme.border, 0); // 边框颜色（虽然宽度为0，但设置了颜色）
+
+    /* 状态栏 */
+    status_bar_ = lv_obj_create(container_); // 在容器中创建状态栏
+    lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height); // 高度为字体高度，宽度为屏幕宽度
+    lv_obj_set_style_radius(status_bar_, 0, 0); // 无圆角
+    lv_obj_set_style_bg_color(status_bar_, current_theme.background, 0); // 背景颜色
+    lv_obj_set_style_text_color(status_bar_, current_theme.text, 0); // 文字颜色
+
+    /* 设置状态栏布局及样式 */
+    lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW); // 水平排列（行）
+    lv_obj_set_style_pad_all(status_bar_, 0, 0); // 内边距为0
+    lv_obj_set_style_border_width(status_bar_, 0, 0); // 无边框
+    lv_obj_set_style_pad_column(status_bar_, 0, 0); // 列间距为0
+    lv_obj_set_style_pad_left(status_bar_, 2, 0); // 左边距
+    lv_obj_set_style_pad_right(status_bar_, 2, 0); // 右边距
+
+    /* 网络状态图标标签 */
+    network_label_ = lv_label_create(status_bar_);
+    lv_label_set_text(network_label_, ""); // 默认无文本
+    lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0); // 使用图标字体
+    lv_obj_set_style_text_color(network_label_, current_theme.text, 0);
+
+    /* 通知图标标签 */
+    notification_label_ = lv_label_create(status_bar_);
+    lv_obj_set_flex_grow(notification_label_, 1); // 占据可扩展空间
+    lv_obj_set_style_text_align(notification_label_, LV_TEXT_ALIGN_CENTER, 0); // 居中对齐
+    lv_obj_set_style_text_color(notification_label_, current_theme.text, 0);
+    lv_label_set_text(notification_label_, ""); // 默认空文本
+    lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN); // 初始隐藏
+
+    /* 状态文字标签（滚动） */
+    status_label_ = lv_label_create(status_bar_);
+    lv_obj_set_flex_grow(status_label_, 1); // 占据可扩展空间
+    lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR); // 滚动循环显示
+    lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0); // 居中
+    lv_obj_set_style_text_color(status_label_, current_theme.text, 0);
+    lv_label_set_text(status_label_, Lang::Strings::INITIALIZING); // 初始状态
+
+    /* 静音图标 */
+    mute_label_ = lv_label_create(status_bar_);
+    lv_label_set_text(mute_label_, ""); // 空内容
+    lv_obj_set_style_text_font(mute_label_, fonts_.icon_font, 0);
+    lv_obj_set_style_text_color(mute_label_, current_theme.text, 0);
+
+    /* 电池图标 */
+    battery_label_ = lv_label_create(status_bar_);
+    lv_label_set_text(battery_label_, ""); // 空内容
+    lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
+    lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);
+
+    /* 聊天内容区 */
+    content_ = lv_obj_create(container_); // 在容器中创建内容区域
+    lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF); // 不显示滚动条
+    lv_obj_set_style_radius(content_, 0, 0); // 无圆角
+    lv_obj_set_width(content_, LV_HOR_RES); // 宽度为屏幕宽度
+    lv_obj_set_flex_grow(content_, 1); // 占据剩余空间
+    lv_obj_set_style_pad_all(content_, 5, 0); // 设置内边距为5
+    lv_obj_set_style_bg_color(content_, current_theme.chat_background, 0); // 聊天区域背景色
+    lv_obj_set_style_border_color(content_, current_theme.border, 0); // 边框颜色
+
+    // 设置内容区域为垂直流式布局
+    lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN);
+    // 设置子元素垂直居中对齐，并在空间中均匀分布
+    lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY);
+
+    /* 表情标签 */
+    emotion_label_ = lv_label_create(content_); // 创建表情图标标签
+    lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0); // 使用 Font Awesome 字体
+    lv_obj_set_style_text_color(emotion_label_, current_theme.text, 0); // 设置颜色
+    lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP); // 设置图标字符内容
+
+    /* 聊天消息标签 */
+    chat_message_label_ = lv_label_create(content_); // 创建文本标签
+    lv_label_set_text(chat_message_label_, ""); // 初始文本为空
+    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9); // 宽度为屏幕90%
+    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 自动换行
+    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 文本居中
+    lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0); // 字体颜色
+
+    // 创建低电量弹窗
+    CreateLowBatteryPopup(screen);
+}
+
 #else
 void LcdDisplay::SetupUI() {
     DisplayLockGuard lock(this);
@@ -575,18 +726,8 @@ void LcdDisplay::SetupUI() {
     lv_label_set_text(battery_label_, "");
     lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
     lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);
-
-    low_battery_popup_ = lv_obj_create(screen);
-    lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
-    lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_style_bg_color(low_battery_popup_, current_theme.low_battery, 0);
-    lv_obj_set_style_radius(low_battery_popup_, 10, 0);
-    lv_obj_t* low_battery_label = lv_label_create(low_battery_popup_);
-    lv_label_set_text(low_battery_label, Lang::Strings::BATTERY_NEED_CHARGE);
-    lv_obj_set_style_text_color(low_battery_label, lv_color_white(), 0);
-    lv_obj_center(low_battery_label);
-    lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+    //创建电量弹窗
+    CreateLowBatteryPopup(screen);
 }
 #endif
 
@@ -620,6 +761,11 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         return;
     }
 
+    if (emotion == nullptr) {
+        lv_label_set_text(emotion_label_, "😶");
+        return;
+    }
+    
     lv_obj_set_style_text_font(emotion_label_, fonts_.emoji_font, 0);
     auto it = emotion_map.find(emotion);
     if (it != emotion_map.end()) {
@@ -829,4 +975,80 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
 
     // No errors occurred. Save theme to settings
     Display::SetTheme(theme_name);
+}
+
+//创建电量弹窗
+void LcdDisplay::CreateLowBatteryPopup(lv_obj_t * parent) {
+    low_battery_popup_ = lv_obj_create(parent);
+    lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
+    lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_bg_color(low_battery_popup_, current_theme.low_battery, 0);
+    lv_obj_set_style_radius(low_battery_popup_, 10, 0);
+    lv_obj_t* low_battery_label = lv_label_create(low_battery_popup_);
+    lv_label_set_text(low_battery_label, Lang::Strings::BATTERY_NEED_CHARGE);
+    lv_obj_set_style_text_color(low_battery_label, lv_color_white(), 0);
+    lv_obj_center(low_battery_label);
+    lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
+}
+
+static const std::unordered_map<std::string, LcdDisplay::EmotionAnimation> emotion_animations = {
+    {"happy", {"happy", 4, 150}},
+    {"sad", {"sad", 3, 200}},
+    {"angry", {"angry", 5, 120}},
+    {"neutral", {"neutral", 1, 0}} // static frame
+};
+
+void LcdDisplay::SetEmotionAnimated(const char* emotion) {
+    DisplayLockGuard lock(this);
+
+    if (emotion == nullptr) return;
+
+    auto it = emotion_animations.find(emotion);
+    if (it == emotion_animations.end()) return;
+
+    current_animation_ = it->second;
+    current_frame_ = 0;
+
+    if (emotion_img_ == nullptr) {
+        emotion_img_ = lv_img_create(container_);
+        lv_obj_center(emotion_img_);
+    }
+
+     // 停止旧定时器
+     if (esp_anim_timer_) {
+        esp_timer_stop(esp_anim_timer_);
+        esp_timer_delete(esp_anim_timer_);
+        esp_anim_timer_ = nullptr;
+    }
+
+    if (current_animation_.frameCount > 1) {
+        const esp_timer_create_args_t anim_timer_args = {
+            .callback = [](void* arg) {
+                LcdDisplay* self = static_cast<LcdDisplay*>(arg);
+                self->UpdateEmotionFrame();
+            },
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "emotion_anim"
+        };
+        ESP_ERROR_CHECK(esp_timer_create(&anim_timer_args, &esp_anim_timer_));
+        ESP_ERROR_CHECK(esp_timer_start_periodic(
+            esp_anim_timer_,
+            current_animation_.frameDurationMs * 1000));  // 毫秒转微秒
+    }
+    UpdateEmotionFrame();
+}
+
+void LcdDisplay::UpdateEmotionFrame() {
+    char path[64];
+    snprintf(path, sizeof(path), "S:/emoji/%s_%d.bin",
+             current_animation_.name.c_str(), current_frame_);
+    lv_img_set_src(emotion_img_, path);
+    current_frame_++;
+    if (current_frame_ >= current_animation_.frameCount) {
+        current_frame_ = 0;
+        esp_timer_stop(esp_anim_timer_);
+        return;
+    }
 }

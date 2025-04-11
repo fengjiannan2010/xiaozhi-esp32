@@ -2,11 +2,11 @@
 #define LCD_DISPLAY_H
 
 #include "display.h"
-
+#include "esp_timer.h"
 #include <esp_lcd_panel_io.h>
 #include <esp_lcd_panel_ops.h>
 #include <font_emoji.h>
-
+#include <lvgl.h>
 #include <atomic>
 
 class LcdDisplay : public Display {
@@ -22,15 +22,25 @@ protected:
 
     DisplayFonts fonts_;
 
+    lv_obj_t* emotion_img_ = nullptr;
+    int current_frame_ = 0;
+    esp_timer_handle_t esp_anim_timer_ = nullptr;
+    
     void SetupUI();
-
-    lv_coord_t CalculateBubbleWidth(const char* content);
-    void UpdateMessageBubbleStyle(lv_obj_t* bubble, const char* bubble_type);
-    void UpdateMessageTextStyle(lv_obj_t* msg_text, const char* role);
-    void SetTransparentContainerStyle(lv_obj_t* container);
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
 
+#if CONFIG_USE_WECHAT_MESSAGE_STYLE
+    virtual lv_coord_t CalculateBubbleWidth(const char* content);
+    virtual void UpdateChatBubbleStyles();
+    virtual void UpdateMessageBubbleStyle(lv_obj_t* bubble, const char* bubble_type);
+    virtual void UpdateMessageTextStyle(lv_obj_t* msg_text, const char* role);
+    virtual void SetTransparentContainerStyle(lv_obj_t* container);
+    virtual void CreateAndAlignContainer(lv_obj_t* parent, lv_obj_t* child, const char* role);
+#endif  
+
+    virtual void UpdateEmotionFrame();
+    virtual void CreateLowBatteryPopup(lv_obj_t * parent);
 protected:
     // 添加protected构造函数
     LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, DisplayFonts fonts)
@@ -46,6 +56,15 @@ public:
 
     // Add theme switching function
     virtual void SetTheme(const std::string& theme_name) override;
+    virtual void SetEmotionAnimated(const char* emotion);
+
+    struct EmotionAnimation {
+        std::string name;
+        int frameCount;
+        int frameDurationMs;
+    };
+    
+    EmotionAnimation current_animation_;
 };
 
 // RGB LCD显示器

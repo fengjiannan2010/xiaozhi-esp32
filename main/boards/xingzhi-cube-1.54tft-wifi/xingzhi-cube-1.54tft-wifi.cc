@@ -10,13 +10,14 @@
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 #include "power_manager.h"
-
+#include "settings.h"
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
 #include <wifi_station.h>
 
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
+#include "sdcard_manager.h"
 
 #define TAG "XINGZHI_CUBE_1_54TFT_WIFI"
 
@@ -170,11 +171,28 @@ private:
         thing_manager.AddThing(iot::CreateThing("Battery"));
     }
 
+    void InitializeSdCard() {
+        SdCardManager sd_card_manager(PIN_NUM_MOSI, PIN_NUM_MISO, PIN_NUM_CLK, PIN_NUM_CS);
+        esp_err_t ret = sd_card_manager.Init();
+        int sd_card_status = 0;
+        if (ret == ESP_OK) {
+            sd_card_status = 1;
+            ESP_LOGI(TAG, "SDCard 初始化成功");
+        } else {
+            sd_card_status = 0;
+            ESP_LOGE(TAG, "SDCard 初始化失败: %s", esp_err_to_name(ret));
+        }
+        // 保存设置
+        Settings settings("sc_card", true);
+        settings.SetInt("enable", sd_card_status);
+    }
+
 public:
     XINGZHI_CUBE_1_54TFT_WIFI() :
         boot_button_(BOOT_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
+        InitializeSdCard();
         InitializePowerManager();
         InitializePowerSaveTimer();
         InitializeSpi();

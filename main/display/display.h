@@ -62,7 +62,6 @@ protected:
     virtual void Update();
 };
 
-
 class DisplayLockGuard {
 public:
     DisplayLockGuard(Display *display) : display_(display) {
