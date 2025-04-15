@@ -9,7 +9,7 @@
 #include <cstring>
 #include "settings.h"
 #include <unordered_map>
-
+#include <lvgl.h>
 #include "board.h"
 
 #define TAG "LcdDisplay"
@@ -35,6 +35,8 @@
 #define LIGHT_SYSTEM_TEXT_COLOR      lv_color_hex(0x666666)     // Dark gray text
 #define LIGHT_BORDER_COLOR           lv_color_hex(0xE0E0E0)     // Light gray border
 #define LIGHT_LOW_BATTERY_COLOR      lv_color_black()           // Black for light mode
+
+
 
 // Theme color structure
 struct ThemeColors {
@@ -77,19 +79,19 @@ static const ThemeColors LIGHT_THEME = {
 
 // Define frame animation theme colors
 static const ThemeColors FRAME_ANIMATION_THEME = {
-    .background = lv_color_hex(0x0A0E3B),
+    .background = lv_color_hex(0x0c0c1e),
     .text = lv_color_white(),
-    .chat_background = DARK_CHAT_BACKGROUND_COLOR,
-    .user_bubble = DARK_USER_BUBBLE_COLOR,
-    .assistant_bubble = DARK_ASSISTANT_BUBBLE_COLOR,
-    .system_bubble = DARK_SYSTEM_BUBBLE_COLOR,
-    .system_text = DARK_SYSTEM_TEXT_COLOR,
-    .border = DARK_BORDER_COLOR,
-    .low_battery = DARK_LOW_BATTERY_COLOR
+    .chat_background = lv_color_hex(0x0c0c1e)  ,
+    .user_bubble = lv_color_hex(0x0c0c1e)  ,
+    .assistant_bubble = lv_color_hex(0x0c0c1e)  ,
+    .system_bubble = lv_color_hex(0x0c0c1e),
+    .system_text = lv_color_hex(0x0c0c1e),
+    .border = lv_color_hex(0x0c0c1e),
+    .low_battery = lv_color_hex(0x5c1cee)  
 };
 
 // Current theme - initialize based on default config
-static ThemeColors current_theme = LIGHT_THEME;
+static ThemeColors current_theme = FRAME_ANIMATION_THEME;
 
 
 LV_FONT_DECLARE(font_awesome_30_4);
@@ -265,6 +267,14 @@ LcdDisplay::~LcdDisplay() {
     if (panel_io_ != nullptr) {
         esp_lcd_panel_io_del(panel_io_);
     }
+
+#if CONFIG_USE_FRAME_ANIMATION_STYLE
+    if (emotion_task_handle_) {
+        emotion_task_running_ = false;
+        vTaskDelete(emotion_task_handle_);
+        emotion_task_handle_ = nullptr;
+    }
+#endif
 }
 
 bool LcdDisplay::Lock(int timeout_ms) {
@@ -536,108 +546,326 @@ void LcdDisplay::UpdateChatBubbleStyles() {
 }
 
 #elif CONFIG_USE_FRAME_ANIMATION_STYLE
+#define SD_DRIVE "/sdcard"
+#define FPS 10  // 设置帧率为 30 帧每秒
 void LcdDisplay::SetupUI() {
     // 上锁，防止显示操作冲突
     DisplayLockGuard lock(this);
 
     // 获取当前活动屏幕
     auto screen = lv_screen_active();
-    
     // 设置默认字体和颜色样式
     lv_obj_set_style_text_font(screen, fonts_.text_font, 0);
     lv_obj_set_style_text_color(screen, current_theme.text, 0);
     lv_obj_set_style_bg_color(screen, current_theme.background, 0);
 
-    /* 创建容器 */
-    container_ = lv_obj_create(screen); // 在屏幕上创建容器对象
-    lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES); // 设置容器大小为屏幕大小
-    lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN); // 设置容器布局为垂直排列（列）
-    lv_obj_set_style_pad_all(container_, 0, 0); // 所有内边距设置为0
-    lv_obj_set_style_border_width(container_, 0, 0); // 无边框
-    lv_obj_set_style_pad_row(container_, 0, 0); // 行间距为0
-    lv_obj_set_style_bg_color(container_, current_theme.background, 0); // 背景色
-    lv_obj_set_style_border_color(container_, current_theme.border, 0); // 边框颜色（虽然宽度为0，但设置了颜色）
+    // 创建容器
+    container_ = lv_obj_create(screen);
+    lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);
+    lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);
+    lv_obj_set_style_pad_all(container_, 0, 0);
+    lv_obj_set_style_border_width(container_, 0, 0);
+    lv_obj_set_style_pad_row(container_, 0, 0);
+    lv_obj_set_style_bg_color(container_, current_theme.background, 0);
+    lv_obj_set_style_border_color(container_, current_theme.border, 0);
 
-    /* 状态栏 */
-    status_bar_ = lv_obj_create(container_); // 在容器中创建状态栏
-    lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height); // 高度为字体高度，宽度为屏幕宽度
-    lv_obj_set_style_radius(status_bar_, 0, 0); // 无圆角
-    lv_obj_set_style_bg_color(status_bar_, current_theme.background, 0); // 背景颜色
-    lv_obj_set_style_text_color(status_bar_, current_theme.text, 0); // 文字颜色
+    // 状态栏
+    status_bar_ = lv_obj_create(container_);
+    lv_obj_set_size(status_bar_, LV_HOR_RES, fonts_.text_font->line_height);
+    lv_obj_set_style_radius(status_bar_, 0, 0);
+    lv_obj_set_style_bg_color(status_bar_, current_theme.background, 0);
+    lv_obj_set_style_text_color(status_bar_, current_theme.text, 0);
+    lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
+    lv_obj_set_style_pad_all(status_bar_, 0, 0);
+    lv_obj_set_style_border_width(status_bar_, 0, 0);
+    lv_obj_set_style_pad_column(status_bar_, 0, 0);
+    lv_obj_set_style_pad_left(status_bar_, 2, 0);
+    lv_obj_set_style_pad_right(status_bar_, 2, 0);
 
-    /* 设置状态栏布局及样式 */
-    lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW); // 水平排列（行）
-    lv_obj_set_style_pad_all(status_bar_, 0, 0); // 内边距为0
-    lv_obj_set_style_border_width(status_bar_, 0, 0); // 无边框
-    lv_obj_set_style_pad_column(status_bar_, 0, 0); // 列间距为0
-    lv_obj_set_style_pad_left(status_bar_, 2, 0); // 左边距
-    lv_obj_set_style_pad_right(status_bar_, 2, 0); // 右边距
-
-    /* 网络状态图标标签 */
+    // 网络状态图标标签
     network_label_ = lv_label_create(status_bar_);
-    lv_label_set_text(network_label_, ""); // 默认无文本
-    lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0); // 使用图标字体
+    lv_label_set_text(network_label_, "");
+    lv_obj_set_style_text_font(network_label_, fonts_.icon_font, 0);
     lv_obj_set_style_text_color(network_label_, current_theme.text, 0);
 
-    /* 通知图标标签 */
+    // 通知图标标签
     notification_label_ = lv_label_create(status_bar_);
-    lv_obj_set_flex_grow(notification_label_, 1); // 占据可扩展空间
-    lv_obj_set_style_text_align(notification_label_, LV_TEXT_ALIGN_CENTER, 0); // 居中对齐
+    lv_obj_set_flex_grow(notification_label_, 1);
+    lv_obj_set_style_text_align(notification_label_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(notification_label_, current_theme.text, 0);
-    lv_label_set_text(notification_label_, ""); // 默认空文本
-    lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN); // 初始隐藏
+    lv_label_set_text(notification_label_, "");
+    lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
 
-    /* 状态文字标签（滚动） */
+    // 状态文字标签（滚动）
     status_label_ = lv_label_create(status_bar_);
-    lv_obj_set_flex_grow(status_label_, 1); // 占据可扩展空间
-    lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR); // 滚动循环显示
-    lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0); // 居中
+    lv_obj_set_flex_grow(status_label_, 1);
+    lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(status_label_, current_theme.text, 0);
-    lv_label_set_text(status_label_, Lang::Strings::INITIALIZING); // 初始状态
+    lv_label_set_text(status_label_, Lang::Strings::INITIALIZING);
 
-    /* 静音图标 */
+    // 静音图标
     mute_label_ = lv_label_create(status_bar_);
-    lv_label_set_text(mute_label_, ""); // 空内容
+    lv_label_set_text(mute_label_, "");
     lv_obj_set_style_text_font(mute_label_, fonts_.icon_font, 0);
     lv_obj_set_style_text_color(mute_label_, current_theme.text, 0);
 
-    /* 电池图标 */
+    // 电池图标
     battery_label_ = lv_label_create(status_bar_);
-    lv_label_set_text(battery_label_, ""); // 空内容
+    lv_label_set_text(battery_label_, "");
     lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
     lv_obj_set_style_text_color(battery_label_, current_theme.text, 0);
 
-    /* 聊天内容区 */
-    content_ = lv_obj_create(container_); // 在容器中创建内容区域
-    lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF); // 不显示滚动条
-    lv_obj_set_style_radius(content_, 0, 0); // 无圆角
-    lv_obj_set_width(content_, LV_HOR_RES); // 宽度为屏幕宽度
-    lv_obj_set_flex_grow(content_, 1); // 占据剩余空间
-    lv_obj_set_style_pad_all(content_, 5, 0); // 设置内边距为5
-    lv_obj_set_style_bg_color(content_, current_theme.chat_background, 0); // 聊天区域背景色
-    lv_obj_set_style_border_color(content_, current_theme.border, 0); // 边框颜色
+    // 内容区域：使用 FLEX 布局
+    content_ = lv_obj_create(container_);
+    lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_radius(content_, 0, 0);
+    lv_obj_set_width(content_, LV_HOR_RES);
+    lv_obj_set_flex_grow(content_, 1);
+    lv_obj_set_style_pad_all(content_, 0, 0);
+    lv_obj_set_style_bg_color(content_, current_theme.chat_background, 0);
+    lv_obj_set_style_border_color(content_, current_theme.border, 0); 
 
-    // 设置内容区域为垂直流式布局
-    lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN);
-    // 设置子元素垂直居中对齐，并在空间中均匀分布
-    lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY);
+    //创建一个图像容器，使图片不受 flex 挤压，保持居中
+    lv_obj_t* img_container = lv_obj_create(content_);
+    lv_obj_set_scrollbar_mode(img_container, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_size(img_container, LV_PCT(100), LV_PCT(100));
+    lv_obj_set_style_pad_all(img_container, 0, 0);
+    lv_obj_set_style_border_width(img_container, 0, 0);
+    lv_obj_set_style_pad_column(img_container, 0, 0);
+    lv_obj_set_style_pad_left(img_container, 0, 0);
+    lv_obj_set_style_pad_right(img_container, 0, 0);
+    lv_obj_set_style_bg_color(img_container, current_theme.background, 0);
+    lv_obj_set_style_bg_opa(img_container, LV_OPA_TRANSP, 0);
+    lv_obj_set_layout(img_container, LV_LAYOUT_FLEX);
+    lv_obj_set_flex_align(img_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    /* 表情标签 */
-    emotion_label_ = lv_label_create(content_); // 创建表情图标标签
-    lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0); // 使用 Font Awesome 字体
-    lv_obj_set_style_text_color(emotion_label_, current_theme.text, 0); // 设置颜色
-    lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP); // 设置图标字符内容
 
-    /* 聊天消息标签 */
-    chat_message_label_ = lv_label_create(content_); // 创建文本标签
-    lv_label_set_text(chat_message_label_, ""); // 初始文本为空
-    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9); // 宽度为屏幕90%
-    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 自动换行
-    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 文本居中
-    lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0); // 字体颜色
+    //表情图（居中显示）
+    emotion_label_ = lv_img_create(img_container);
 
-    // 创建低电量弹窗
+    // 聊天消息标签，单独添加到 content_ 中，并强制定位
+    chat_message_label_ = lv_label_create(content_);
+    lv_label_set_text(chat_message_label_, "Chat message");
+    lv_obj_set_pos(chat_message_label_, 8, 180);
+    lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.9);
+    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0);
+    lv_obj_move_foreground(chat_message_label_);
+
+    // 延迟滚动字幕动画
+    static lv_anim_t a;
+    lv_anim_init(&a);
+    lv_anim_set_delay(&a, 1000);
+    lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+    lv_obj_set_style_anim(chat_message_label_, &a, LV_PART_MAIN);
+    lv_obj_set_style_anim_duration(chat_message_label_, lv_anim_speed_clamped(60, 300, 60000), LV_PART_MAIN);
+
+    // 创建低电量弹窗（保留原逻辑）
     CreateLowBatteryPopup(screen);
+
+}
+
+// static const std::unordered_map<std::string_view, LcdDisplay::EmotionAnimation> emotion_animations_r = {
+//     {"angry_r",     {"angry_r",     12}},
+//     {"awkwardness_r", {"awkwardness_r", 12}},
+//     {"cute_r",      {"cute_r",      12}},
+//     {"grievance_r", {"grievance_r", 12}},
+//     {"guffaw_r",    {"guffaw_r",    12}},
+//     {"hate_r",      {"hate_r",      12}},
+//     {"love_r",      {"love_r",      12}},
+//     {"naughty_r",   {"naughty_r",   12}},
+//     {"query_r",     {"query_r",     12}},
+//     {"sad_r",       {"sad_r",       12}},
+//     {"shame_r",     {"shame_r",     12}},
+//     {"sleepy_r",    {"sleepy_r",    12}},
+//     {"Stun_r",      {"Stun_r",      12}},
+//     {"surprise_r",  {"surprise_r",  12}}
+// };
+
+// static const std::unordered_map<std::string_view, LcdDisplay::EmotionAnimation> rider_animations = {
+//     {"like",        {"like",        83}},
+//     {"sad",         {"sad",         65}},
+//     {"Angry",       {"Angry",       55}},
+//     {"cute",        {"cute",        76}},
+//     {"doubt",       {"doubt",       64}},
+//     {"embarrassed", {"embarrassed", 66}},
+//     {"grievance",   {"grievance",   72}},
+//     {"hate",        {"hate",        81}},
+//     {"laugh",       {"laugh",       51}},
+//     {"shy",         {"shy",         60}},
+//     {"sleep",       {"sleep",       94}},
+//     {"surprised",   {"surprised",   74}},
+//     {"vertigo",     {"vertigo",     59}}
+// };
+
+std::vector<uint8_t*> preloaded_frames_; // 预加载的帧缓冲区
+
+static const std::unordered_map<std::string_view, LcdDisplay::EmotionAnimation> emotion_animations = {
+    {"neutral",     {"happy",     12}},
+    {"happy",       {"happy",     12}},
+    {"laughing",    {"guffaw",    8}},
+    {"funny",       {"funny",    12}},    
+    {"sad",         {"sad",      14}},
+    {"angry",       {"naughty",  14}},    
+    {"crying",      {"wronged",  12}},    // crying → wronged
+    {"loving",      {"love",     12}},    // loving → love
+    {"embarrassed", {"awkwardness", 12}}, // embarrassed → awkwardness
+    {"surprised",   {"surprise", 15}},
+    {"shocked",     {"Stun",     12}},    // shocked → Stun
+    {"thinking",    {"query",    12}},    // thinking → query
+    {"winking",     {"eyes",     12}},    // winking → eyes
+    {"cool",        {"lookaround", 12}},
+    {"relaxed",     {"pray",     12}},    // relaxed → pray
+    {"delicious",   {"drool",    12}},    // delicious → drool
+    {"kissy",       {"kissy",    12}},
+    {"confident",   {"confident", 12}},
+    {"sleepy",      {"sleepy",   19}},
+    {"silly",       {"naughty",  12}},    // silly → naughty
+    {"confused",    {"boring",   15}},    // confused → boring
+
+    // 新表情补充
+    {"awkwardness", {"awkwardness", 11}}, 
+    {"boring",      {"boring",    14}},   
+    {"drool",       {"drool",     8}},
+    {"eyes",        {"eyes",      15}},   
+    {"guffaw",      {"guffaw",    8}},    
+    {"hate",        {"hate",      10}},    
+    {"lookaround",  {"lookaround", 12}},   
+    {"love",         {"love",     13}},   
+    {"naughty",      {"naughty",  14}},   
+    {"pray",         {"pray",     8}},    
+    {"query",        {"query",    7}},    
+    {"seek",         {"seek",     12}},   
+    {"Shakehead",    {"Shakehead", 7}},   
+    {"shame",        {"shame",    11}},   
+    {"Stun",         {"Stun",     8}},    
+    {"surprise",     {"surprise", 15}},    
+    {"wronged",      {"wronged",  14}}     
+};
+
+void LcdDisplay::SetEmotion(const char* emotion) {
+    DisplayLockGuard lock(this);
+    if (!emotion || !emotion_label_) return;
+    // 查找动画配置
+    std::string_view emotion_view(emotion);
+    auto it = emotion_animations.find(emotion_view);
+    if (it == emotion_animations.end()) {
+        emotion_view = "neutral";
+        it = emotion_animations.find(emotion_view);
+    }
+    current_animation_ = it->second;
+    // 停止旧任务并释放资源
+    if (emotion_task_handle_) {
+        emotion_task_running_ = false;
+        vTaskDelay(pdMS_TO_TICKS(50)); // 给任务结束的时间
+        if (emotion_task_handle_) {
+            vTaskDelete(emotion_task_handle_);
+            emotion_task_handle_ = nullptr;
+        }
+    }
+    // 预加载所有帧到内存
+    for (auto buf : preloaded_frames_) {
+        delete[] buf;
+    }
+    preloaded_frames_.clear();
+    
+    for (int i = 0; i < current_animation_.frameCount; i++) {
+        char frame_path[128];
+        snprintf(frame_path, sizeof(frame_path), "%s/emoji_bin/%s/%d.bin",
+                SD_DRIVE, current_animation_.name.c_str(), i);
+        if (uint8_t* buffer = LoadRGB565Frame(frame_path)) {
+            preloaded_frames_.push_back(buffer);
+        } else {
+            ESP_LOGE(TAG, "预加载失败，已加载 %d/%d 帧",
+                   (int)preloaded_frames_.size(), current_animation_.frameCount);
+            break;
+        }
+    }
+    // 启动动画任务
+    current_frame_ = 0;
+    emotion_task_running_ = !preloaded_frames_.empty();
+    if (emotion_task_running_) {
+        xTaskCreate([](void* arg) {
+            LcdDisplay* self = static_cast<LcdDisplay*>(arg);
+            self->UpdateEmotionFrame();
+        }, "EmotionTask", 4096, this, 5, &emotion_task_handle_);
+    }
+}
+
+void LcdDisplay::UpdateEmotionFrame() {
+    ESP_LOGI(TAG, "启动动画：%s (%d帧)",
+           current_animation_.name.c_str(),
+           (int)preloaded_frames_.size());
+    const uint32_t frame_delay = 1000 / FPS;
+    
+    while (emotion_task_running_ && !preloaded_frames_.empty()) {
+        // 使用预加载的帧数据
+        uint8_t* current_buffer = preloaded_frames_[current_frame_];
+        
+        // 更新LVGL图像描述符
+        static lv_img_dsc_t frame_desc;
+        frame_desc.header.w = 240;
+        frame_desc.header.h = 180;
+        frame_desc.header.cf = LV_COLOR_FORMAT_RGB565;
+        frame_desc.data_size = 240 * 180 * 2;
+        frame_desc.data = current_buffer;
+        
+        lv_img_set_src(emotion_label_, &frame_desc);
+        // 推进帧序号
+        current_frame_ = (current_frame_ + 1) % preloaded_frames_.size();
+        
+        // 精确延时（考虑lv_tick_get()计时）
+        static uint32_t last_tick = 0;
+        uint32_t elapsed = lv_tick_elaps(last_tick);
+        if (elapsed < frame_delay) {
+            vTaskDelay(pdMS_TO_TICKS(frame_delay - elapsed));
+        }
+        last_tick = lv_tick_get();
+    }
+    // 退出时清理
+    emotion_task_running_ = false;
+    emotion_task_handle_ = nullptr;
+    vTaskDelete(nullptr);
+}
+
+uint8_t* LcdDisplay::LoadRGB565Frame(const char* frame_path) {
+    FILE* file = fopen(frame_path, "rb");
+    if (!file) {
+        ESP_LOGE(TAG, "无法打开文件：%s (错误码: %d)", frame_path, errno);
+        return nullptr;
+    }
+    // 验证文件大小
+    fseek(file, 0, SEEK_END);
+    size_t file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    
+    if (file_size != 240*180*2) {
+        ESP_LOGE(TAG, "文件大小错误：%s (期望 %d 字节，实际 %d 字节)",
+               frame_path, 240*180*2, file_size);
+        fclose(file);
+        return nullptr;
+    }
+    // 分配内存并加载
+    uint8_t* buffer = new uint8_t[file_size];
+    if (fread(buffer, 1, file_size, file) != file_size) {
+        ESP_LOGE(TAG, "读取文件失败：%s", frame_path);
+        fclose(file);
+        delete[] buffer;
+        return nullptr;
+    }
+    fclose(file);
+    return buffer;
+}
+
+void LcdDisplay::SetChatMessage(const char* role, const char* content) {
+    DisplayLockGuard lock(this);
+    if (chat_message_label_ == nullptr) {
+        return;
+    }
+    lv_label_set_text(chat_message_label_, content);
+    lv_obj_move_foreground(chat_message_label_);
 }
 
 #else
@@ -731,28 +959,30 @@ void LcdDisplay::SetupUI() {
 }
 #endif
 
-static const std::unordered_map<std::string, std::string> emotion_map = {
-    {"neutral", "😶"},
-    {"happy", "🙂"},
-    {"laughing", "😆"},
-    {"funny", "😂"},
-    {"sad", "😔"},
-    {"angry", "😠"},
-    {"crying", "😭"},
-    {"loving", "😍"},
+#if !CONFIG_USE_FRAME_ANIMATION_STYLE
+    
+static const std::unordered_map<std::string_view, std::string_view> emotion_map = {
+    {"neutral",   "😶"},
+    {"happy",     "🙂"},
+    {"laughing",  "😆"},
+    {"funny",     "😂"},
+    {"sad",       "😔"},
+    {"angry",     "😠"},
+    {"crying",    "😭"},
+    {"loving",    "😍"},
     {"embarrassed", "😳"},
     {"surprised", "😯"},
-    {"shocked", "😱"},
-    {"thinking", "🤔"},
-    {"winking", "😉"},
-    {"cool", "😎"},
-    {"relaxed", "😌"},
+    {"shocked",   "😱"},
+    {"thinking",  "🤔"},
+    {"winking",   "😉"},
+    {"cool",      "😎"},
+    {"relaxed",   "😌"},
     {"delicious", "🤤"},
-    {"kissy", "😘"},
+    {"kissy",     "😘"},
     {"confident", "😏"},
-    {"sleepy", "😴"},
-    {"silly", "😜"},
-    {"confused", "🙄"}
+    {"sleepy",    "😴"},
+    {"silly",     "😜"},
+    {"confused",  "🙄"}
 };
 
 void LcdDisplay::SetEmotion(const char* emotion) {
@@ -766,14 +996,18 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         return;
     }
     
+    // 使用 std::string_view 作为查找键
+    std::string_view emotion_view(emotion);
     lv_obj_set_style_text_font(emotion_label_, fonts_.emoji_font, 0);
-    auto it = emotion_map.find(emotion);
+    auto it = emotion_map.find(emotion_view); // 查找 std::string_view 类型的键
     if (it != emotion_map.end()) {
-        lv_label_set_text(emotion_label_, it->second.c_str());
+        lv_label_set_text(emotion_label_, it->second.data()); // 使用 data() 获取字符串
     } else {
         lv_label_set_text(emotion_label_, "😶");
     }
 }
+#endif
+
 
 void LcdDisplay::SetIcon(const char* icon) {
     DisplayLockGuard lock(this);
@@ -791,6 +1025,8 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
         current_theme = DARK_THEME;
     } else if (theme_name == "light" || theme_name == "LIGHT") {
         current_theme = LIGHT_THEME;
+    }  else if (theme_name == "animation" || theme_name == "ANIMATION") {
+        current_theme = FRAME_ANIMATION_THEME;
     } else {
         // Invalid theme name, return false
         ESP_LOGE(TAG, "Invalid theme name: %s", theme_name.c_str());
@@ -962,9 +1198,9 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
             lv_obj_set_style_text_color(chat_message_label_, current_theme.text, 0);
         }
         
-        if (emotion_label_ != nullptr) {
-            lv_obj_set_style_text_color(emotion_label_, current_theme.text, 0);
-        }
+        // if (emotion_label_ != nullptr) {
+        //     lv_obj_set_style_text_color(emotion_label_, current_theme.text, 0);
+        // }
 #endif
     }
     
@@ -976,7 +1212,6 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
     // No errors occurred. Save theme to settings
     Display::SetTheme(theme_name);
 }
-
 //创建电量弹窗
 void LcdDisplay::CreateLowBatteryPopup(lv_obj_t * parent) {
     low_battery_popup_ = lv_obj_create(parent);
@@ -990,65 +1225,4 @@ void LcdDisplay::CreateLowBatteryPopup(lv_obj_t * parent) {
     lv_obj_set_style_text_color(low_battery_label, lv_color_white(), 0);
     lv_obj_center(low_battery_label);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
-}
-
-static const std::unordered_map<std::string, LcdDisplay::EmotionAnimation> emotion_animations = {
-    {"happy", {"happy", 4, 150}},
-    {"sad", {"sad", 3, 200}},
-    {"angry", {"angry", 5, 120}},
-    {"neutral", {"neutral", 1, 0}} // static frame
-};
-
-void LcdDisplay::SetEmotionAnimated(const char* emotion) {
-    DisplayLockGuard lock(this);
-
-    if (emotion == nullptr) return;
-
-    auto it = emotion_animations.find(emotion);
-    if (it == emotion_animations.end()) return;
-
-    current_animation_ = it->second;
-    current_frame_ = 0;
-
-    if (emotion_img_ == nullptr) {
-        emotion_img_ = lv_img_create(container_);
-        lv_obj_center(emotion_img_);
-    }
-
-     // 停止旧定时器
-     if (esp_anim_timer_) {
-        esp_timer_stop(esp_anim_timer_);
-        esp_timer_delete(esp_anim_timer_);
-        esp_anim_timer_ = nullptr;
-    }
-
-    if (current_animation_.frameCount > 1) {
-        const esp_timer_create_args_t anim_timer_args = {
-            .callback = [](void* arg) {
-                LcdDisplay* self = static_cast<LcdDisplay*>(arg);
-                self->UpdateEmotionFrame();
-            },
-            .arg = this,
-            .dispatch_method = ESP_TIMER_TASK,
-            .name = "emotion_anim"
-        };
-        ESP_ERROR_CHECK(esp_timer_create(&anim_timer_args, &esp_anim_timer_));
-        ESP_ERROR_CHECK(esp_timer_start_periodic(
-            esp_anim_timer_,
-            current_animation_.frameDurationMs * 1000));  // 毫秒转微秒
-    }
-    UpdateEmotionFrame();
-}
-
-void LcdDisplay::UpdateEmotionFrame() {
-    char path[64];
-    snprintf(path, sizeof(path), "S:/emoji/%s_%d.bin",
-             current_animation_.name.c_str(), current_frame_);
-    lv_img_set_src(emotion_img_, path);
-    current_frame_++;
-    if (current_frame_ >= current_animation_.frameCount) {
-        current_frame_ = 0;
-        esp_timer_stop(esp_anim_timer_);
-        return;
-    }
 }

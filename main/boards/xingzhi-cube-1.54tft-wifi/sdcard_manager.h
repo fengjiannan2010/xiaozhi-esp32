@@ -1,13 +1,14 @@
 #ifndef SDCARD_MANAGER_H
 #define SDCARD_MANAGER_H
 
-#include <string.h>
-#include <sys/unistd.h>
-#include <sys/stat.h>
 #include "esp_vfs_fat.h"
 #include "sdmmc_cmd.h"
+#include "driver/spi_common.h"
+#include "driver/sdspi_host.h"
 #include "esp_log.h"
-#include "esp_err.h"
+#include <stdio.h>
+#include <string.h>
+#include "lvgl.h"
 
 class SdCardManager {
 private:
@@ -30,11 +31,12 @@ private:
     void InitSpiBusConfig();
     void InitSlotConfig();
     void InitMountConfig();
+    void RegisterLvglFilesystem();
 
 public:
     // 构造函数，传入 GPIO 引脚
     SdCardManager(int pin_mosi, int pin_miso, int pin_clk, int pin_cs);
-    ~SdCardManager();
+    // ~SdCardManager();
 
     // 初始化 SD 卡
     esp_err_t Init();

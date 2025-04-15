@@ -28,7 +28,7 @@ public:
 
         // 定义设备可以被远程执行的指令
         methods_.AddMethod("SetTheme", "设置屏幕主题", ParameterList({
-            Parameter("theme_name", "主题模式, light 或 dark", kValueTypeString, true)
+            Parameter("theme_name", "主题模式, light 或 dark 或 animation", kValueTypeString, true)
         }), [this](const ParameterList& parameters) {
             std::string theme_name = static_cast<std::string>(parameters["theme_name"].string());
             auto display = Board::GetInstance().GetDisplay();
