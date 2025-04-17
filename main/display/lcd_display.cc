@@ -1215,7 +1215,7 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
 }
 //创建电量弹窗
 void LcdDisplay::CreateLowBatteryPopup(lv_obj_t * parent) {
-    low_battery_popup_ = lv_obj_create(screen);
+    low_battery_popup_ = lv_obj_create(parent);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
     lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
