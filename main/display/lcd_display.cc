@@ -76,7 +76,6 @@ static const ThemeColors LIGHT_THEME = {
     .low_battery = LIGHT_LOW_BATTERY_COLOR
 };
 
-
 #define ANIMATION_BACKGROUND_COLOR       lv_color_hex(0x080818)     // Dark background
 
 // Define frame animation theme colors
@@ -94,7 +93,6 @@ static const ThemeColors FRAME_ANIMATION_THEME = {
 
 // Current theme - initialize based on default config
 static ThemeColors current_theme = FRAME_ANIMATION_THEME;
-
 
 LV_FONT_DECLARE(font_awesome_30_4);
 
@@ -162,12 +160,13 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     }
 
     // Update the theme
-    if (current_theme_name_ == "dark") {
+    if (current_theme_name_ == "dark" || current_theme_name_ == "DARK") {
         current_theme = DARK_THEME;
-    } else if (current_theme_name_ == "light") {
+    } else if (current_theme_name_ == "light" || current_theme_name_ == "LIGHT") {
         current_theme = LIGHT_THEME;
+    } else if (current_theme_name_ == "animation" || current_theme_name_ == "ANIMATION") {
+        current_theme = FRAME_ANIMATION_THEME;
     }
-
     SetupUI();
 }
 
