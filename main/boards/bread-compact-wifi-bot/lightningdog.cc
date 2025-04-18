@@ -63,7 +63,6 @@ public:
             servoControl_.dance(5);
         });
         servoControl_.test0(0);
-        // xTaskCreate(servo_test_task, "servo_test_task", 2048, this, 5, NULL);
     }
 };
 

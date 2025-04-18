@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <lvgl.h>
 #include "board.h"
+#include <sys/stat.h> // Required for stat function
 
 #define TAG "LcdDisplay"
 
@@ -35,8 +36,6 @@
 #define LIGHT_SYSTEM_TEXT_COLOR      lv_color_hex(0x666666)     // Dark gray text
 #define LIGHT_BORDER_COLOR           lv_color_hex(0xE0E0E0)     // Light gray border
 #define LIGHT_LOW_BATTERY_COLOR      lv_color_black()           // Black for light mode
-
-
 
 // Theme color structure
 struct ThemeColors {
@@ -77,17 +76,20 @@ static const ThemeColors LIGHT_THEME = {
     .low_battery = LIGHT_LOW_BATTERY_COLOR
 };
 
+
+#define ANIMATION_BACKGROUND_COLOR       lv_color_hex(0x080818)     // Dark background
+
 // Define frame animation theme colors
 static const ThemeColors FRAME_ANIMATION_THEME = {
-    .background = lv_color_hex(0x0c0c1e),
+    .background =ANIMATION_BACKGROUND_COLOR,
     .text = lv_color_white(),
-    .chat_background = lv_color_hex(0x0c0c1e)  ,
-    .user_bubble = lv_color_hex(0x0c0c1e)  ,
-    .assistant_bubble = lv_color_hex(0x0c0c1e)  ,
-    .system_bubble = lv_color_hex(0x0c0c1e),
-    .system_text = lv_color_hex(0x0c0c1e),
-    .border = lv_color_hex(0x0c0c1e),
-    .low_battery = lv_color_hex(0x5c1cee)  
+    .chat_background = ANIMATION_BACKGROUND_COLOR,
+    .user_bubble = ANIMATION_BACKGROUND_COLOR,
+    .assistant_bubble = ANIMATION_BACKGROUND_COLOR,
+    .system_bubble = ANIMATION_BACKGROUND_COLOR,
+    .system_text = ANIMATION_BACKGROUND_COLOR,
+    .border = ANIMATION_BACKGROUND_COLOR,
+    .low_battery = DARK_LOW_BATTERY_COLOR 
 };
 
 // Current theme - initialize based on default config
@@ -641,7 +643,6 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_layout(img_container, LV_LAYOUT_FLEX);
     lv_obj_set_flex_align(img_container, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-
     //表情图（居中显示）
     emotion_label_ = lv_img_create(img_container);
 
@@ -665,7 +666,11 @@ void LcdDisplay::SetupUI() {
 
     // 创建低电量弹窗（保留原逻辑）
     CreateLowBatteryPopup(screen);
-
+    emotion_event_group_ = xEventGroupCreate();
+    xTaskCreate([](void* arg) {
+        static_cast<LcdDisplay*>(arg)->UpdateEmotionFrame();
+    }, "EmotionTask", 4096, this, 4, &emotion_task_handle_);
+    SetEmotion("neutral");
 }
 
 // static const std::unordered_map<std::string_view, LcdDisplay::EmotionAnimation> emotion_animations_r = {
@@ -746,9 +751,14 @@ static const std::unordered_map<std::string_view, LcdDisplay::EmotionAnimation> 
     {"wronged",      {"wronged",  14}}     
 };
 
+#define EMOTION_RUNNING_BIT (1 << 0)
+
 void LcdDisplay::SetEmotion(const char* emotion) {
     DisplayLockGuard lock(this);
     if (!emotion || !emotion_label_) return;
+
+    ESP_LOGI(TAG, "设置表情：%s", emotion);
+
     // 查找动画配置
     std::string_view emotion_view(emotion);
     auto it = emotion_animations.find(emotion_view);
@@ -756,82 +766,98 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         emotion_view = "neutral";
         it = emotion_animations.find(emotion_view);
     }
-    current_animation_ = it->second;
-    // 停止旧任务并释放资源
-    if (emotion_task_handle_) {
-        emotion_task_running_ = false;
-        vTaskDelay(pdMS_TO_TICKS(50)); // 给任务结束的时间
-        if (emotion_task_handle_) {
-            vTaskDelete(emotion_task_handle_);
-            emotion_task_handle_ = nullptr;
-        }
+
+    if (it->second.name == current_animation_.name) {
+        ESP_LOGI(TAG, "当前动画与目标动画相同，跳过设置");
+        return;
     }
-    // 预加载所有帧到内存
+
+    current_animation_ = it->second;
+    ESP_LOGI(TAG, "启动动画：%s (%d帧)", current_animation_.name.c_str(), current_animation_.frameCount);
+
+    // 停止旧任务并释放资源
+    xEventGroupClearBits(emotion_event_group_, EMOTION_RUNNING_BIT);
+    vTaskDelay(pdMS_TO_TICKS(50)); // 等待当前帧播放完成
+
+    // 清除旧帧
     for (auto buf : preloaded_frames_) {
         delete[] buf;
     }
     preloaded_frames_.clear();
-    
-    for (int i = 0; i < current_animation_.frameCount; i++) {
+    // 加载新帧
+    for (int i = 1; i <= current_animation_.frameCount; i++) {
         char frame_path[128];
         snprintf(frame_path, sizeof(frame_path), "%s/emoji_bin/%s/%d.bin",
-                SD_DRIVE, current_animation_.name.c_str(), i);
+                 SD_DRIVE, current_animation_.name.c_str(), i);
         if (uint8_t* buffer = LoadRGB565Frame(frame_path)) {
             preloaded_frames_.push_back(buffer);
         } else {
             ESP_LOGE(TAG, "预加载失败，已加载 %d/%d 帧",
-                   (int)preloaded_frames_.size(), current_animation_.frameCount);
+                     (int)preloaded_frames_.size(), current_animation_.frameCount);
             break;
         }
     }
-    // 启动动画任务
+
     current_frame_ = 0;
-    emotion_task_running_ = !preloaded_frames_.empty();
-    if (emotion_task_running_) {
-        xTaskCreate([](void* arg) {
-            LcdDisplay* self = static_cast<LcdDisplay*>(arg);
-            self->UpdateEmotionFrame();
-        }, "EmotionTask", 4096, this, 5, &emotion_task_handle_);
+    // 启动播放
+    if (!preloaded_frames_.empty()) {
+        xEventGroupSetBits(emotion_event_group_, EMOTION_RUNNING_BIT);
     }
 }
 
 void LcdDisplay::UpdateEmotionFrame() {
-    ESP_LOGI(TAG, "启动动画：%s (%d帧)",
-           current_animation_.name.c_str(),
-           (int)preloaded_frames_.size());
+    ESP_LOGI(TAG, "EmotionTask 启动");
     const uint32_t frame_delay = 1000 / FPS;
-    
-    while (emotion_task_running_ && !preloaded_frames_.empty()) {
-        // 使用预加载的帧数据
+    static uint32_t last_tick = lv_tick_get();
+
+    static lv_img_dsc_t frame_desc;
+    frame_desc.header.w = 240;
+    frame_desc.header.h = 180;
+    frame_desc.header.cf = LV_COLOR_FORMAT_RGB565;
+    frame_desc.data_size = 240 * 180 * 2;
+
+    while (true) {
+        // 等待播放标志
+        xEventGroupWaitBits(emotion_event_group_, EMOTION_RUNNING_BIT, pdFALSE, pdTRUE, portMAX_DELAY);
+
+        if (preloaded_frames_.empty()) {
+            // 没有可播放的内容，暂停任务运行
+            xEventGroupClearBits(emotion_event_group_, EMOTION_RUNNING_BIT);
+            continue;
+        }
+
+        // 准备当前帧
         uint8_t* current_buffer = preloaded_frames_[current_frame_];
-        
-        // 更新LVGL图像描述符
-        static lv_img_dsc_t frame_desc;
-        frame_desc.header.w = 240;
-        frame_desc.header.h = 180;
-        frame_desc.header.cf = LV_COLOR_FORMAT_RGB565;
-        frame_desc.data_size = 240 * 180 * 2;
         frame_desc.data = current_buffer;
-        
-        lv_img_set_src(emotion_label_, &frame_desc);
-        // 推进帧序号
+
+        //异步在 GUI 线程中设置图像
+        lv_async_call([](void* arg) {
+            auto* pair = static_cast<std::pair<lv_obj_t*, lv_img_dsc_t*>*>(arg);
+            lv_img_set_src(pair->first, pair->second);
+            delete pair;  // 释放传入的数据
+        }, new std::pair<lv_obj_t*, lv_img_dsc_t*>(emotion_label_, &frame_desc));
+
+        // 切换下一帧
         current_frame_ = (current_frame_ + 1) % preloaded_frames_.size();
-        
-        // 精确延时（考虑lv_tick_get()计时）
-        static uint32_t last_tick = 0;
+
+        // 延时
         uint32_t elapsed = lv_tick_elaps(last_tick);
         if (elapsed < frame_delay) {
             vTaskDelay(pdMS_TO_TICKS(frame_delay - elapsed));
         }
         last_tick = lv_tick_get();
+
+        // 检查暂停
+        EventBits_t bits = xEventGroupGetBits(emotion_event_group_);
+        if (!(bits & EMOTION_RUNNING_BIT)) {
+            ESP_LOGI(TAG, "动画播放被暂停");
+            continue;
+        }
     }
-    // 退出时清理
-    emotion_task_running_ = false;
-    emotion_task_handle_ = nullptr;
-    vTaskDelete(nullptr);
 }
 
 uint8_t* LcdDisplay::LoadRGB565Frame(const char* frame_path) {
+
     FILE* file = fopen(frame_path, "rb");
     if (!file) {
         ESP_LOGE(TAG, "无法打开文件：%s (错误码: %d)", frame_path, errno);
@@ -1008,7 +1034,6 @@ void LcdDisplay::SetEmotion(const char* emotion) {
     }
 }
 #endif
-
 
 void LcdDisplay::SetIcon(const char* icon) {
     DisplayLockGuard lock(this);

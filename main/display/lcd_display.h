@@ -24,6 +24,7 @@ protected:
 
 #if CONFIG_USE_FRAME_ANIMATION_STYLE
     int current_frame_ = 0;
+    EventGroupHandle_t emotion_event_group_;
     TaskHandle_t emotion_task_handle_ = nullptr;
     std::atomic<bool> emotion_task_running_{false};
 #endif

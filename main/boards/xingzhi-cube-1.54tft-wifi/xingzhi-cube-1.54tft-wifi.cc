@@ -196,12 +196,12 @@ public:
         boot_button_(BOOT_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
+        InitializeSdCard();
         InitializePowerManager();
         InitializePowerSaveTimer();
         InitializeSpi();
         InitializeButtons();
         InitializeSt7789Display();  
-        InitializeSdCard();
         InitializeIot();
         GetBacklight()->RestoreBrightness();
     }

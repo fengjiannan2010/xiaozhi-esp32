@@ -11,11 +11,6 @@ SdCardManager::SdCardManager(int pin_mosi, int pin_miso, int pin_clk, int pin_cs
     ESP_LOGI(TAG, "SdCardManager 构造函数调用");
 }
 
-// SdCardManager::~SdCardManager() {
-//     Unmount();
-//     ESP_LOGI(TAG, "SdCardManager 析构函数调用");
-// }
-
 void SdCardManager::InitSpiBusConfig() {
     spi_bus_config_ = {
         .mosi_io_num = pin_mosi_,
@@ -36,7 +31,7 @@ void SdCardManager::InitSlotConfig() {
 void SdCardManager::InitMountConfig() {
     mount_config_ = {
         .format_if_mount_failed = false,
-        .max_files = 10,
+        .max_files = 100,
         .allocation_unit_size = 16 * 1024,
     };
 }
@@ -184,3 +179,24 @@ void SdCardManager::RegisterLvglFilesystem() {
     lv_fs_drv_register(&drv);
     ESP_LOGI(TAG, "LVGL v9 文件系统驱动注册成功，盘符: 'S:'");
 }
+
+void SdCardManager::ListDir(const char *path) {
+    ESP_LOGI(TAG, "列出目录: %s", path);
+
+    DIR *dir = opendir(path);
+    if (!dir) {
+        ESP_LOGE(TAG, "无法打开目录: %s (错误码: %d)", path, errno);
+        return;
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != nullptr) {
+        const char *type = (entry->d_type == DT_DIR) ? "目录 " :
+                           (entry->d_type == DT_REG) ? "文件 " : "其他 ";
+        ESP_LOGI(TAG, "%s: %s", type, entry->d_name);
+    }
+
+    closedir(dir);
+    ESP_LOGI(TAG, "目录读取完毕");
+}
+// 
