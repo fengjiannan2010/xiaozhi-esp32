@@ -22,27 +22,29 @@ protected:
 
     DisplayFonts fonts_;
 
-#if CONFIG_USE_FRAME_ANIMATION_STYLE
     int current_frame_ = 0;
     EventGroupHandle_t emotion_event_group_;
     TaskHandle_t emotion_task_handle_ = nullptr;
     std::atomic<bool> emotion_task_running_{false};
-#endif
 
     void SetupUI();
+    void SetupNormalUI();
+    void SetupWeChatUI();
+    void SetupAnimationUI();
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
-    virtual void CreateLowBatteryPopup(lv_obj_t * parent);
+    void CreateLowBatteryPopup(lv_obj_t * parent);
+    lv_coord_t CalculateBubbleWidth(const char* content);
+    void UpdateChatBubbleStyles();
+    void UpdateMessageBubbleStyle(lv_obj_t* bubble, const char* bubble_type);
+    void UpdateMessageTextStyle(lv_obj_t* msg_text, const char* role);
+    void SetTransparentContainerStyle(lv_obj_t* container);
+    void CreateAndAlignContainer(lv_obj_t* parent, lv_obj_t* child, const char* role);
+    void SetWeChatMessage(const char* role, const char* content);  
+    void SetAnimationChatMessage(const char* role, const char* content);  
 
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
-    virtual lv_coord_t CalculateBubbleWidth(const char* content);
-    virtual void UpdateChatBubbleStyles();
-    virtual void UpdateMessageBubbleStyle(lv_obj_t* bubble, const char* bubble_type);
-    virtual void UpdateMessageTextStyle(lv_obj_t* msg_text, const char* role);
-    virtual void SetTransparentContainerStyle(lv_obj_t* container);
-    virtual void CreateAndAlignContainer(lv_obj_t* parent, lv_obj_t* child, const char* role);
-#endif  
-
+    void SetNormalEmotion(const char* emotion);
+    void SetAnimationEmotion(const char* emotion);
 protected:
     // 添加protected构造函数
     LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, DisplayFonts fonts)
@@ -52,11 +54,8 @@ public:
     ~LcdDisplay();
     virtual void SetEmotion(const char* emotion) override;
     virtual void SetIcon(const char* icon) override;
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE || CONFIG_USE_FRAME_ANIMATION_STYLE
-    virtual void SetChatMessage(const char* role, const char* content) override; 
-#endif  
-
-#if CONFIG_USE_FRAME_ANIMATION_STYLE
+    virtual void SetChatMessage(const char* role, const char* content) override;  
+    
     struct EmotionAnimation {
         std::string name;
         int frameCount;
@@ -64,7 +63,6 @@ public:
     EmotionAnimation current_animation_;
     virtual void UpdateEmotionFrame();
     uint8_t* LoadRGB565Frame(const char* frame_path);
-#endif  
     // Add theme switching function
     virtual void SetTheme(const std::string& theme_name) override; 
 };

@@ -216,16 +216,11 @@ choice DISPLAY_ESP32S3_KORVO2_V3
         bool "ILI9341, 分辨率240*320"
 endchoice
 
-config USE_WECHAT_MESSAGE_STYLE
-    bool "使用微信聊天界面风格"
+config ENABLE_SD_CARD
+    bool "启用SD卡"
     default n
     help
-        使用微信聊天界面风格
-config USE_FRAME_ANIMATION_STYLE
-    bool "使用图片帧动画风格"
-    default n
-    help
-        使用微信聊天界面风格
+        需要 SD 卡支持
 
 config USE_WAKE_WORD_DETECT
     bool "启用唤醒词检测"

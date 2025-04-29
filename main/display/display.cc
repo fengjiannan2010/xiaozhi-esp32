@@ -18,6 +18,7 @@ Display::Display() {
     // Load theme from settings
     Settings settings("display", false);
     current_theme_name_ = settings.GetString("theme", "light");
+    current_style_name_ = settings.GetString("style", "normal");
 
     // Notification timer
     esp_timer_create_args_t notification_timer_args = {
@@ -254,5 +255,17 @@ void Display::SetChatMessage(const char* role, const char* content) {
 void Display::SetTheme(const std::string& theme_name) {
     current_theme_name_ = theme_name;
     Settings settings("display", true);
-    settings.SetString("theme", theme_name);
+    settings.SetString("theme", current_theme_name_);
+}
+
+void Display::SetStyle(const std::string& theme_style) {
+    if (theme_style == "animation" || theme_style == "ANIMATION") {
+        #if CONFIG_ENABLE_SD_CARD
+            current_style_name_ = theme_style;
+        #endif
+    } else {
+        current_style_name_ = theme_style;
+    }
+    Settings settings("display", true);
+    settings.SetString("style", current_style_name_);
 }
