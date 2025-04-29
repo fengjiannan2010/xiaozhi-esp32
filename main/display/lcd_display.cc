@@ -39,7 +39,7 @@
 #define ANIMATION_BACKGROUND_COLOR   lv_color_hex(0x080818)     // Dark background
 
 #define SD_DRIVE "/sdcard"
-#define FPS 10  // 设置帧率为 30 帧每秒
+#define FPS 10  // 设置帧率为 10 帧每秒
 #define MAX_MESSAGES 20
 #define EMOTION_RUNNING_BIT (1 << 0)
 

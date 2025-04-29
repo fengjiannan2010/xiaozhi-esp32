@@ -1,13 +1,10 @@
 #include "sdcard_manager.h"
-#include "config.h"
 #include <dirent.h>
 
 const char *TAG = "SdCardManager";
 
-
-
-SdCardManager::SdCardManager(int pin_mosi, int pin_miso, int pin_clk, int pin_cs)
-    : pin_mosi_(pin_mosi), pin_miso_(pin_miso), pin_clk_(pin_clk), pin_cs_(pin_cs){
+SdCardManager::SdCardManager(int pin_mosi, int pin_miso, int pin_clk, int pin_cs, const char* mount_point)
+    : pin_mosi_(pin_mosi), pin_miso_(pin_miso), pin_clk_(pin_clk), pin_cs_(pin_cs), mount_point_(mount_point) {
     ESP_LOGI(TAG, "SdCardManager 构造函数调用");
 }
 

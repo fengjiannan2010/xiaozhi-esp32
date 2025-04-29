@@ -14,11 +14,9 @@
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
 #include <wifi_station.h>
-
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
 #include "sdcard_manager.h"
-
 #define TAG "XINGZHI_CUBE_1_54TFT_WIFI"
 
 LV_FONT_DECLARE(font_puhui_20_4);
@@ -172,7 +170,7 @@ private:
     }
 
     void InitializeSdCard() {
-        SdCardManager sd_card_manager(PIN_NUM_MOSI, PIN_NUM_MISO, PIN_NUM_CLK, PIN_NUM_CS);
+        SdCardManager sd_card_manager(PIN_NUM_MOSI, PIN_NUM_MISO, PIN_NUM_CLK, PIN_NUM_CS , MOUNT_POINT);
         esp_err_t ret = sd_card_manager.Init();
         int sd_card_status = 0;
         if (ret == ESP_OK) {

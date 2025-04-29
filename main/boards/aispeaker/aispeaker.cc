@@ -5,38 +5,79 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
+#include "power_save_timer.h"
 #include "iot/thing_manager.h"
 #include "led/single_led.h"
 #include "assets/lang_config.h"
-#include <wifi_station.h>
+#include "power_manager.h"
+#include "settings.h"
 #include <esp_log.h>
-#include <driver/i2c_master.h>
 #include <esp_lcd_panel_vendor.h>
-#include <esp_lcd_panel_io.h>
-#include <esp_lcd_panel_ops.h>
-#include <driver/spi_common.h>
+#include <wifi_station.h>
 
-#include "iot/thing_manager.h"
+#include <driver/rtc_io.h>
+#include <esp_sleep.h>
+#include "sdcard_manager.h"
 #include "led/circular_strip.h"
 #include "led_strip_control.h"
 
 #define TAG "AiSpeakerWifiBoardLCD"
 
-LV_FONT_DECLARE(font_puhui_16_4);
-LV_FONT_DECLARE(font_awesome_16_4);
+LV_FONT_DECLARE(font_puhui_20_4);
+LV_FONT_DECLARE(font_awesome_20_4);
+
 
 class AiSpeakerWifiBoardLCD : public WifiBoard {
 private:
- 
     Button boot_button_;
     Button touch_button_;
     Button volume_up_button_;
     Button volume_down_button_;
-
-    LcdDisplay* display_;
-    esp_lcd_panel_io_handle_t panel_io = nullptr;
-    esp_lcd_panel_handle_t panel = nullptr;
+    SpiLcdDisplay* display_;
+    PowerSaveTimer* power_save_timer_;
+    PowerManager* power_manager_;
+    esp_lcd_panel_io_handle_t panel_io_ = nullptr;
+    esp_lcd_panel_handle_t panel_ = nullptr;
     CircularStrip* led_strip_;
+
+    void InitializePowerManager() {
+        power_manager_ = new PowerManager(GPIO_NUM_38);
+        power_manager_->OnChargingStatusChanged([this](bool is_charging) {
+            if (is_charging) {
+                power_save_timer_->SetEnabled(false);
+            } else {
+                power_save_timer_->SetEnabled(true);
+            }
+        });
+    }
+
+    void InitializePowerSaveTimer() {
+        rtc_gpio_init(GPIO_NUM_21);
+        rtc_gpio_set_direction(GPIO_NUM_21, RTC_GPIO_MODE_OUTPUT_ONLY);
+        rtc_gpio_set_level(GPIO_NUM_21, 1);
+
+        power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
+        power_save_timer_->OnEnterSleepMode([this]() {
+            ESP_LOGI(TAG, "Enabling sleep mode");
+            display_->SetChatMessage("system", "");
+            display_->SetEmotion("sleepy");
+            GetBacklight()->SetBrightness(1);
+        });
+        power_save_timer_->OnExitSleepMode([this]() {
+            display_->SetChatMessage("system", "");
+            display_->SetEmotion("neutral");
+            GetBacklight()->RestoreBrightness();
+        });
+        power_save_timer_->OnShutdownRequest([this]() {
+            ESP_LOGI(TAG, "Shutting down");
+            rtc_gpio_set_level(GPIO_NUM_21, 0);
+            // 启用保持功能，确保睡眠期间电平不变
+            rtc_gpio_hold_en(GPIO_NUM_21);
+            esp_lcd_panel_disp_on_off(panel_, false); //关闭显示
+            esp_deep_sleep_start();
+        });
+        power_save_timer_->SetEnabled(true);
+    }
 
     void InitializeSpi() {
         spi_bus_config_t buscfg = {};
@@ -49,44 +90,9 @@ private:
         ESP_ERROR_CHECK(spi_bus_initialize(SPI3_HOST, &buscfg, SPI_DMA_CH_AUTO));
     }
 
-    void InitializeLcdDisplay() {
-        
-        // 液晶屏控制IO初始化
-        ESP_LOGD(TAG, "Install panel IO");
-        esp_lcd_panel_io_spi_config_t io_config = {};
-        io_config.cs_gpio_num = DISPLAY_CS;
-        io_config.dc_gpio_num = DISPLAY_DC;
-        io_config.spi_mode = DISPLAY_SPI_MODE;
-        io_config.pclk_hz = 40 * 1000 * 1000;
-        io_config.trans_queue_depth = 10;
-        io_config.lcd_cmd_bits = 8;
-        io_config.lcd_param_bits = 8;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io));
-
-        // 初始化液晶屏驱动芯片
-        ESP_LOGD(TAG, "Install LCD driver");
-        esp_lcd_panel_dev_config_t panel_config = {};
-        panel_config.reset_gpio_num = DISPLAY_RES;
-        panel_config.rgb_ele_order = DISPLAY_RGB_ORDER;
-        panel_config.bits_per_pixel = 16;
-        ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io, &panel_config, &panel));
-        esp_lcd_panel_reset(panel);
-        esp_lcd_panel_init(panel);
-        esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
-        esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
-        esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);
-        
-        display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_16_4,
-                                        .icon_font = &font_awesome_16_4,
-                                        .emoji_font = font_emoji_32_init(),
-                                    });
-    }
-
     void InitializeButtons() {
         boot_button_.OnClick([this]() {
+            power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 ResetWifiConfiguration();
@@ -99,8 +105,8 @@ private:
         touch_button_.OnPressUp([this]() {
             Application::GetInstance().StopListening();
         });
-
         volume_up_button_.OnClick([this]() {
+            power_save_timer_->WakeUp();
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() + 10;
             if (volume > 100) {
@@ -111,11 +117,13 @@ private:
         });
 
         volume_up_button_.OnLongPress([this]() {
+            power_save_timer_->WakeUp();
             GetAudioCodec()->SetOutputVolume(100);
             GetDisplay()->ShowNotification(Lang::Strings::MAX_VOLUME);
         });
 
         volume_down_button_.OnClick([this]() {
+            power_save_timer_->WakeUp();
             auto codec = GetAudioCodec();
             auto volume = codec->output_volume() - 10;
             if (volume < 0) {
@@ -126,42 +134,93 @@ private:
         });
 
         volume_down_button_.OnLongPress([this]() {
+            power_save_timer_->WakeUp();
             GetAudioCodec()->SetOutputVolume(0);
             GetDisplay()->ShowNotification(Lang::Strings::MUTED);
         });
     }
 
-    // 物联网初始化，添加对 AI 可见设备
+    void InitializeSt7789Display() {
+        ESP_LOGD(TAG, "Install panel IO");
+        esp_lcd_panel_io_spi_config_t io_config = {};
+        io_config.cs_gpio_num = DISPLAY_CS;
+        io_config.dc_gpio_num = DISPLAY_DC;
+        io_config.spi_mode = 3;
+        io_config.pclk_hz = 80 * 1000 * 1000;
+        io_config.trans_queue_depth = 10;
+        io_config.lcd_cmd_bits = 8;
+        io_config.lcd_param_bits = 8;
+        ESP_ERROR_CHECK(esp_lcd_new_panel_io_spi(SPI3_HOST, &io_config, &panel_io_));
+
+        ESP_LOGD(TAG, "Install LCD driver");
+        esp_lcd_panel_dev_config_t panel_config = {};
+        panel_config.reset_gpio_num = DISPLAY_RES;
+        panel_config.rgb_ele_order = LCD_RGB_ELEMENT_ORDER_RGB;
+        panel_config.bits_per_pixel = 16;
+        ESP_ERROR_CHECK(esp_lcd_new_panel_st7789(panel_io_, &panel_config, &panel_));
+        ESP_ERROR_CHECK(esp_lcd_panel_reset(panel_));
+        ESP_ERROR_CHECK(esp_lcd_panel_init(panel_));
+        ESP_ERROR_CHECK(esp_lcd_panel_swap_xy(panel_, DISPLAY_SWAP_XY));
+        ESP_ERROR_CHECK(esp_lcd_panel_mirror(panel_, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y));
+        ESP_ERROR_CHECK(esp_lcd_panel_invert_color(panel_, true));
+
+        display_ = new SpiLcdDisplay(panel_io_, panel_, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, 
+            DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY, 
+        {
+            .text_font = &font_puhui_20_4,
+            .icon_font = &font_awesome_20_4,
+            .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
+        });
+    }
+
     void InitializeIot() {
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Screen"));
-        // thing_manager.AddThing(iot::CreateThing("Lamp"));
-
-        led_strip_ = new CircularStrip(BUILTIN_LED_GPIO, 8);
+        thing_manager.AddThing(iot::CreateThing("Battery"));
+        led_strip_ = new CircularStrip(BUILTIN_LED_GPIO, 4);
         auto led_strip_control = new LedStripControl(led_strip_);
         thing_manager.AddThing(led_strip_control);
     }
 
+    void InitializeSdCard() {
+        SdCardManager sd_card_manager(PIN_NUM_MOSI, PIN_NUM_MISO, PIN_NUM_CLK, PIN_NUM_CS , MOUNT_POINT);
+        esp_err_t ret = sd_card_manager.Init();
+        int sd_card_status = 0;
+        if (ret == ESP_OK) {
+            sd_card_status = 1;
+            ESP_LOGI(TAG, "SDCard 初始化成功");
+        } else {
+            sd_card_status = 0;
+            ESP_LOGE(TAG, "SDCard 初始化失败: %s", esp_err_to_name(ret));
+        }
+        // 保存设置
+        Settings settings("sc_card", true);
+        settings.SetInt("enable", sd_card_status);
+    }
+
 public:
-    AiSpeakerWifiBoardLCD() :
+AiSpeakerWifiBoardLCD() :
         boot_button_(BOOT_BUTTON_GPIO),
-        touch_button_(TOUCH_BUTTON_GPIO),
+        touch_button_(TOUCH_BUTTON_GPIO),       
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
+#if CONFIG_ENABLE_SD_CARD
+        InitializeSdCard();
+#endif
+        InitializePowerManager();
+        InitializePowerSaveTimer();
         InitializeSpi();
-        InitializeLcdDisplay();
         InitializeButtons();
+        InitializeSt7789Display();  
         InitializeIot();
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->RestoreBrightness();
         }
     }
-
+    
     virtual Led* GetLed() override {
         return led_strip_;
-        // static SingleLed led(BUILTIN_LED_GPIO);
-        // return &led;
     }
 
     virtual AudioCodec* GetAudioCodec() override {
@@ -173,13 +232,32 @@ public:
     virtual Display* GetDisplay() override {
         return display_;
     }
-
+    
     virtual Backlight* GetBacklight() override {
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             static PwmBacklight backlight(DISPLAY_BACKLIGHT_PIN, DISPLAY_BACKLIGHT_OUTPUT_INVERT);
             return &backlight;
         }
         return nullptr;
+    }
+
+    virtual bool GetBatteryLevel(int& level, bool& charging, bool& discharging) override {
+        static bool last_discharging = false;
+        charging = power_manager_->IsCharging();
+        discharging = power_manager_->IsDischarging();
+        if (discharging != last_discharging) {
+            power_save_timer_->SetEnabled(discharging);
+            last_discharging = discharging;
+        }
+        level = power_manager_->GetBatteryLevel();
+        return true;
+    }
+
+    virtual void SetPowerSaveMode(bool enabled) override {
+        if (!enabled) {
+            power_save_timer_->WakeUp();
+        }
+        WifiBoard::SetPowerSaveMode(enabled);
     }
 };
 
