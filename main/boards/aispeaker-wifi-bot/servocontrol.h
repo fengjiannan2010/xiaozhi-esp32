@@ -36,7 +36,6 @@ public:
     void moveBackward(int times = 1);
     void dance(int times);
     void test0(u_int8_t channelIndex);
-    void testGpio(gpio_num_t gpio_num_);
 };
 
 #endif // SERVO_CONTROL_H

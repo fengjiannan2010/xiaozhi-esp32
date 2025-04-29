@@ -444,26 +444,6 @@ void ServoControl::test0(u_int8_t channelIndex)
     standUp();
 }
 
-// 建议使用 GPIO18、GPIO19、GPIO20、GPIO21
-void ServoControl::testGpio(gpio_num_t gpio_num_)
-{
-    gpio_config_t io_conf;
-    io_conf.pin_bit_mask = (1ULL << gpio_num_);
-    io_conf.mode = GPIO_MODE_OUTPUT;
-    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    io_conf.pull_up_en = GPIO_PULLUP_DISABLE;
-    io_conf.intr_type = GPIO_INTR_DISABLE;
-    esp_err_t err = gpio_config(&io_conf);
-    if (err == ESP_OK)
-    {
-        ESP_LOGI("GPIO_TEST", "GPIO4 可用");
-    }
-    else
-    {
-        ESP_LOGE("GPIO_TEST", "GPIO4 不可用，错误代码: %d", err);
-    }
-}
-
 void ServoControl::SetServos(const std::array<float, 4> &angles)
 {
     for (uint8_t i = 0; i < 4; ++i)

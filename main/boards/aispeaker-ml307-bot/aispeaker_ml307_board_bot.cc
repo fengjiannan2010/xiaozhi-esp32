@@ -14,12 +14,12 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
 
-#define TAG "CompactMl307BotBoard"
+#define TAG "AiSpeakerMl307BotBoard"
 
 LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
-class CompactMl307BotBoard : public Ml307Board {
+class AiSpeakerMl307BotBoard : public Ml307Board {
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
@@ -144,7 +144,7 @@ private:
     }
 
 public:
-    CompactMl307BotBoard() : Ml307Board(ML307_TX_PIN, ML307_RX_PIN, 4096),
+    AiSpeakerMl307BotBoard() : Ml307Board(ML307_TX_PIN, ML307_RX_PIN, 4096),
         boot_button_(BOOT_BUTTON_GPIO),
         touch_button_(TOUCH_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
@@ -177,4 +177,4 @@ public:
     }
 };
 
-DECLARE_BOARD(CompactMl307BotBoard);
+DECLARE_BOARD(AiSpeakerMl307BotBoard);

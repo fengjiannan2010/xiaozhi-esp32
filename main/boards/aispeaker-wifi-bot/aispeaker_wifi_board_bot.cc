@@ -15,12 +15,12 @@
 #include <esp_lcd_panel_ops.h>
 #include <esp_lcd_panel_vendor.h>
 
-#define TAG "CompactWifiBotBoard"
+#define TAG "AiSpeakerWifiBotBoard"
 
 LV_FONT_DECLARE(font_puhui_14_1);
 LV_FONT_DECLARE(font_awesome_14_1);
 
-class CompactWifiBotBoard : public WifiBoard {
+class AiSpeakerWifiBotBoard : public WifiBoard {
 private:
     i2c_master_bus_handle_t display_i2c_bus_;
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
@@ -150,7 +150,7 @@ private:
     }
 
 public:
-    CompactWifiBotBoard() :
+    AiSpeakerWifiBotBoard() :
         boot_button_(BOOT_BUTTON_GPIO),
         touch_button_(TOUCH_BUTTON_GPIO),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
@@ -182,4 +182,4 @@ public:
     }
 };
 
-DECLARE_BOARD(CompactWifiBotBoard);
+DECLARE_BOARD(AiSpeakerWifiBotBoard);
