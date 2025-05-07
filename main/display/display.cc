@@ -17,8 +17,8 @@
 Display::Display() {
     // Load theme from settings
     Settings settings("display", false);
-    current_theme_name_ = settings.GetString("theme", "light");
-    current_style_name_ = settings.GetString("style", "normal");
+    current_theme_name_ = settings.GetString("theme", "animation");
+    current_style_name_ = settings.GetString("style", "animation");
 
     // Notification timer
     esp_timer_create_args_t notification_timer_args = {
