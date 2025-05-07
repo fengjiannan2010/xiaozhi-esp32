@@ -637,7 +637,8 @@ void LcdDisplay::SetupAnimationUI() {
     emotion_event_group_ = xEventGroupCreate();
     xTaskCreate([](void* arg) {
         static_cast<LcdDisplay*>(arg)->UpdateEmotionFrame();
-    }, "EmotionTask", 4096, this, 4, &emotion_task_handle_);
+        vTaskDelete(NULL);
+    }, "EmotionTask", 4096, this, 3, &emotion_task_handle_);
     SetEmotion("neutral");
 }
 // 计算聊天气泡宽度
