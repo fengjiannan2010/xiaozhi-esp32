@@ -6,6 +6,9 @@
 #include <driver/gpio.h>
 #include <esp_adc/adc_oneshot.h>
 
+#define SAMPLE_COUNT       40
+#define SAMPLE_INTERVAL_MS 50
+#define CHANGE_THRESHOLD   1
 
 class PowerManager {
 private:
@@ -25,10 +28,28 @@ private:
 
     adc_oneshot_unit_handle_t adc_handle_;
 
+    bool detect_charging_pulse() {
+        int prev_level = gpio_get_level(charging_pin_);
+        int change_count = 0;
+        for (int i = 0; i < SAMPLE_COUNT; ++i) {
+            vTaskDelay(pdMS_TO_TICKS(SAMPLE_INTERVAL_MS));
+            int level = gpio_get_level(charging_pin_);
+            if (level != prev_level) {
+                change_count++;
+                prev_level = level;
+                ESP_LOGI("PowerManager", "ChargingPin value: %d ChangeCount: %d", level, change_count);
+            }
+        }
+        return change_count >= CHANGE_THRESHOLD;
+    }
+
     void CheckBatteryStatus() {
         // Get charging status
         bool new_charging_status = gpio_get_level(charging_pin_) == 1;
-        if (new_charging_status != is_charging_) {
+
+        // 检测是否为脉冲状态（高低跳变）
+        // bool new_charging_status = detect_charging_pulse();  // 检测0.5Hz脉冲
+        if (is_charging_ != new_charging_status) {
             is_charging_ = new_charging_status;
             if (on_charging_status_changed_) {
                 on_charging_status_changed_(is_charging_);
@@ -70,12 +91,12 @@ private:
             uint16_t adc;
             uint8_t level;
         } levels[] = {
-            {1970, 0},
-            {2062, 20},
-            {2154, 40},
-            {2246, 60},
-            {2338, 80},
-            {2430, 100}
+            {1990, 0},
+            {2082, 20},
+            {2174, 40},
+            {2266, 60},
+            {2358, 80},
+            {2450, 100}
         };
 
         // 低于最低值时
@@ -106,7 +127,12 @@ private:
                 }
             }
         }
-
+        auto display = Board::GetInstance().GetDisplay();
+        char message[128];
+        snprintf(message, sizeof(message), "ADC value: %d average: %ld level: %ld charging: %s",
+                 adc_value, average_adc, battery_level_,is_charging_ ? "true" : "false");
+        // 显示电池电量信息
+        display->SetChatMessage("system", message);
         ESP_LOGI("PowerManager", "ADC value: %d average: %ld level: %ld", adc_value, average_adc, battery_level_);
     }
 

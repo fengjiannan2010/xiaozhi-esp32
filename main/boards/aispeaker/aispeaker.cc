@@ -31,6 +31,7 @@ class AiSpeakerWifiBoardLCD : public WifiBoard {
 private:
     Button boot_button_;
     Button touch_button_;
+    Button asr_button_;
     Button volume_up_button_;
     Button volume_down_button_;
     SpiLcdDisplay* display_;
@@ -91,6 +92,7 @@ private:
     }
 
     void InitializeButtons() {
+
         boot_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
@@ -99,12 +101,27 @@ private:
             }
             app.ToggleChatState();
         });
-        touch_button_.OnPressDown([this]() {
-            Application::GetInstance().StartListening();
+
+        asr_button_.OnClick([this]() {
+            std::string wake_word="你好小智";
+            Application::GetInstance().WakeWordInvoke(wake_word);
         });
-        touch_button_.OnPressUp([this]() {
-            Application::GetInstance().StopListening();
+
+        asr_button_.OnDoubleClick([this]() {
+            auto& app = Application::GetInstance();
+            app.Reboot();
         });
+        
+        if (TOUCH_BUTTON_GPIO != GPIO_NUM_NC) {
+            touch_button_.OnPressDown([this]() {
+                Application::GetInstance().StartListening();
+            });
+
+            touch_button_.OnPressUp([this]() {
+                Application::GetInstance().StopListening();
+            });
+        }
+
         volume_up_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
             auto codec = GetAudioCodec();
@@ -202,7 +219,8 @@ private:
 public:
 AiSpeakerWifiBoardLCD() :
         boot_button_(BOOT_BUTTON_GPIO),
-        touch_button_(TOUCH_BUTTON_GPIO),       
+        touch_button_(TOUCH_BUTTON_GPIO),
+        asr_button_(ASR_BUTTON_GPIO),    
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
 #if CONFIG_ENABLE_SD_CARD

@@ -22,11 +22,11 @@ StripColor LedStripControl::RGBToColor(int red, int green, int blue) {
 }
 
 LedStripControl::LedStripControl(CircularStrip* led_strip) 
-    : Thing("LedStripControl", "LED 灯带控制，一共有4个灯珠"), led_strip_(led_strip) {
+    : Thing("LedStripControl", "LED 灯带控制，一共有4个灯珠,默认执行闪烁动画"), led_strip_(led_strip) {
     // 从设置中读取亮度等级
     Settings settings("led_strip");
-    brightness_level_ = settings.GetInt("brightness", 2);  // 默认等级4
-    led_strip_->SetBrightness(LevelToBrightness(brightness_level_), 2);
+    brightness_level_ = settings.GetInt("brightness", 3);  // 默认等级4
+    led_strip_->SetBrightness(LevelToBrightness(brightness_level_), 3);
 
     // 定义设备的属性
     properties_.AddNumberProperty("brightness", "对话时的亮度等级(0-4)", [this]() -> int {
@@ -44,7 +44,7 @@ LedStripControl::LedStripControl(CircularStrip* led_strip)
         if (level > 4) level = 4;
         
         brightness_level_ = level;
-        led_strip_->SetBrightness(LevelToBrightness(brightness_level_), 2);
+        led_strip_->SetBrightness(LevelToBrightness(brightness_level_), 3);
         
         // 保存设置
         Settings settings("led_strip", true);
