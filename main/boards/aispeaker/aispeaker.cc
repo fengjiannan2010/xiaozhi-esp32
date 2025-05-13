@@ -103,19 +103,41 @@ private:
     }
 
     void InitializeButtons() {
-        
         boot_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
             app.ToggleChatState();
         });
 
+        boot_button_.OnDoubleClick([this]() {
+            power_save_timer_->WakeUp();
+            auto& app = Application::GetInstance();
+            if (GetNetworkType() == NetworkType::WIFI) {
+                if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                    // cast to WifiBoard
+                    auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
+                    wifi_board.ResetWifiConfiguration();
+                }
+            }
+            app.ToggleChatState();
+        });
+
+        boot_button_.OnMultipleClick([this]() {
+            auto& app = Application::GetInstance();
+            app.Reboot();
+        });
+
+        boot_button_.OnLongPress([this]() {
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting || app.GetDeviceState() == kDeviceStateWifiConfiguring) {
+                SwitchNetworkType();
+            }
+        });
+        
         asr_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
-            // auto& app = Application::GetInstance();
-            // app.ToggleChatState();
-            std::string wake_word="你好小智";
-            Application::GetInstance().WakeWordInvoke(wake_word);
+            auto& app = Application::GetInstance();
+            app.ToggleChatState();
         });
 
         asr_button_.OnDoubleClick([this]() {
@@ -137,9 +159,10 @@ private:
         });
         
         asr_button_.OnLongPress([this]() {
-            SwitchNetType();
             auto& app = Application::GetInstance();
-            app.Reboot();
+            if (app.GetDeviceState() == kDeviceStateStarting || app.GetDeviceState() == kDeviceStateWifiConfiguring) {
+                SwitchNetworkType();
+            }
         });
         
         volume_up_button_.OnClick([this]() {
