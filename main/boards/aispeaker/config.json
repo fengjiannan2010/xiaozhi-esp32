@@ -5,9 +5,36 @@
             "name": "aispeaker",
             "description": "Aispeaker board",
             "sdkconfig_append": [
-                "ENABLE_SD_CARD=y",
-                "ENABLE_SERVO=n",
-                "ENABLE_GLASS=n"
+                "CONFIG_ENABLE_SD_CARD=n",
+                "CONFIG_ENABLE_SERVO=n",
+                "CONFIG_ENABLE_GLASS=n"
+            ]
+        },
+        {
+            "name": "aispeaker-sdcard",
+            "description": "Aispeaker board with SD card",
+            "sdkconfig_append": [
+                "CONFIG_ENABLE_SD_CARD=y",
+                "CONFIG_ENABLE_SERVO=n",
+                "CONFIG_ENABLE_GLASS=n"
+            ]
+        },
+        {
+            "name": "aispeaker-servo",
+            "description": "Aispeaker board with servo",
+            "sdkconfig_append": [
+                "CONFIG_ENABLE_SD_CARD=n",
+                "CONFIG_ENABLE_SERVO=y",
+                "CONFIG_ENABLE_GLASS=n"
+            ]
+        },
+        {
+            "name": "aispeaker-glass",
+            "description": "Aispeaker board with glass",
+            "sdkconfig_append": [
+                "CONFIG_ENABLE_SD_CARD=n",
+                "CONFIG_ENABLE_SERVO=n",
+                "CONFIG_ENABLE_GLASS=y"
             ]
         }
     ]

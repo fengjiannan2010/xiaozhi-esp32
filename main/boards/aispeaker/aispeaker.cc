@@ -258,8 +258,8 @@ private:
 #ifdef CONFIG_ENABLE_GLASS
         auto smart_glass_control = new SmartGlass(
         ECHO_UART_PORT_NUM,
-        UART_ECHO_TXD,
-        UART_ECHO_RXD,
+        ML307_TX_PIN,
+        ML307_RX_PIN,
         UART_ECHO_RTS,
         UART_ECHO_CTS,
         ECHO_UART_BAUD_RATE,
@@ -288,7 +288,7 @@ private:
 
 public:
     AiSpeakerDualBoard() :
-        DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, ENABLE_4G_BUF_SIZE, (ENABLE_4G_MODULE ? 1 : 0)),
+        DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, BUF_SIZE, 0),
         boot_button_(BOOT_BUTTON_GPIO),
         asr_button_(ASR_BUTTON_GPIO),    
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),

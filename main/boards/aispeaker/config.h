@@ -70,19 +70,16 @@
 
 // 是否启用智能玻璃控制和4G模块,智能玻璃控制和4G模块使用同一个串口,智能启用一个
 #ifdef CONFIG_ENABLE_GLASS
-#define UART_ECHO_RXD GPIO_NUM_11
-#define UART_ECHO_TXD GPIO_NUM_12
+#define ML307_RX_PIN GPIO_NUM_11
+#define ML307_TX_PIN GPIO_NUM_12
 #define UART_ECHO_RTS (-1)
 #define UART_ECHO_CTS (-1)
 #define ECHO_UART_PORT_NUM      UART_NUM_1
 #define ECHO_UART_BAUD_RATE     (115200)
-#define BUF_SIZE                (1024)
+#define BUF_SIZE                (4096)
 #define ENABLE_4G_MODULE false
 #else
 #define ENABLE_4G_MODULE true
-#define ENABLE_4G_BUF_SIZE 4096
-#define ML307_RX_PIN GPIO_NUM_11
-#define ML307_TX_PIN GPIO_NUM_12
 #endif
 
 #endif // _BOARD_CONFIG_H_

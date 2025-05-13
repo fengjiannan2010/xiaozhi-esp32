@@ -76,7 +76,7 @@ void SmartGlass::InitializeUart() {
         .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
         .source_clk = UART_SCLK_DEFAULT,
     };
-    ESP_ERROR_CHECK(uart_driver_install(uart_port_num_, buffer_size_ * 2, 0, 0, NULL, 0));
+    ESP_ERROR_CHECK(uart_driver_install(uart_port_num_, buffer_size_, 0, 0, NULL, 0));
     ESP_ERROR_CHECK(uart_param_config(uart_port_num_, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(uart_port_num_, tx_io_num_, rx_io_num_, rts_io_num_, cts_io_num_));
     ESP_LOGI(TAG, "UART initialized");
