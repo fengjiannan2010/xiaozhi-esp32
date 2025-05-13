@@ -119,21 +119,23 @@ private:
                     wifi_board.ResetWifiConfiguration();
                 }
             }
-            app.ToggleChatState();
         });
 
         boot_button_.OnMultipleClick([this]() {
+            power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
             app.Reboot();
         });
 
+#ifdef ENABLE_4G_MODULE
         boot_button_.OnLongPress([this]() {
+            power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting || app.GetDeviceState() == kDeviceStateWifiConfiguring) {
                 SwitchNetworkType();
             }
         });
-        
+#endif        
         asr_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
@@ -150,21 +152,24 @@ private:
                     wifi_board.ResetWifiConfiguration();
                 }
             }
-            app.ToggleChatState();
         });
 
         asr_button_.OnMultipleClick([this]() {
+            power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
             app.Reboot();
         });
         
+#ifdef ENABLE_4G_MODULE
         asr_button_.OnLongPress([this]() {
+            power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting || app.GetDeviceState() == kDeviceStateWifiConfiguring) {
                 SwitchNetworkType();
             }
         });
-        
+#endif 
+
         volume_up_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
             auto codec = GetAudioCodec();
@@ -280,7 +285,7 @@ private:
         settings.SetInt("enable", sd_card_status);
     }
 #endif
-//DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init()
+
 public:
     AiSpeakerDualBoard() :
         DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, ENABLE_4G_BUF_SIZE, (ENABLE_4G_MODULE ? 1 : 0)),
