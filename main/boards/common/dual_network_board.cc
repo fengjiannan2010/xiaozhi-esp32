@@ -7,12 +7,12 @@
 
 static const char *TAG = "DualNetworkBoard";
 
-DualNetworkBoard::DualNetworkBoard(gpio_num_t ml307_tx_pin, gpio_num_t ml307_rx_pin, size_t ml307_rx_buffer_size) 
+DualNetworkBoard::DualNetworkBoard(gpio_num_t ml307_tx_pin, gpio_num_t ml307_rx_pin, size_t ml307_rx_buffer_size, int default_network_type) 
     : Board(), 
       ml307_tx_pin_(ml307_tx_pin), 
       ml307_rx_pin_(ml307_rx_pin), 
-      ml307_rx_buffer_size_(ml307_rx_buffer_size) {
-    
+      ml307_rx_buffer_size_(ml307_rx_buffer_size),
+      default_network_type_(default_network_type) {
     // 从Settings加载网络类型
     network_type_ = LoadNetworkTypeFromSettings();
     
@@ -22,10 +22,8 @@ DualNetworkBoard::DualNetworkBoard(gpio_num_t ml307_tx_pin, gpio_num_t ml307_rx_
 
 NetworkType DualNetworkBoard::LoadNetworkTypeFromSettings() {
     Settings settings("network", true);
-    int network_type = settings.GetInt("type", 1); // 默认使用ML307 (1)
-    
+    int network_type = settings.GetInt("type", default_network_type_); // 默认使用WIFI (0),ML307 (1)
     ESP_LOGI(TAG, "从Settings加载网络类型: %d", network_type);
-    
     return network_type == 1 ? NetworkType::ML307 : NetworkType::WIFI;
 }
 

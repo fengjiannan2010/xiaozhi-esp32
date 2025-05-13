@@ -14,23 +14,30 @@
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
 #include <wifi_station.h>
-
+#include "dual_network_board.h"
 #include <driver/rtc_io.h>
 #include <esp_sleep.h>
 #include "sdcard_manager.h"
 #include "led/circular_strip.h"
 #include "led_strip_control.h"
 
-#define TAG "AiSpeakerWifiBoardLCD"
+#ifdef CONFIG_ENABLE_GLASS
+#include "smart_glass.h"
+#endif
+
+#ifdef CONFIG_ENABLE_SERVO
+#include "lightning_dog.h"
+#endif
+
+#define TAG "AiSpeakerDualBoard"
 
 LV_FONT_DECLARE(font_puhui_20_4);
 LV_FONT_DECLARE(font_awesome_20_4);
 
 
-class AiSpeakerWifiBoardLCD : public WifiBoard {
+class AiSpeakerDualBoard : public DualNetworkBoard {
 private:
     Button boot_button_;
-    Button touch_button_;
     Button asr_button_;
     Button volume_up_button_;
     Button volume_down_button_;
@@ -42,7 +49,7 @@ private:
     CircularStrip* led_strip_;
 
     void InitializePowerManager() {
-        power_manager_ = new PowerManager(GPIO_NUM_38);
+        power_manager_ = new PowerManager(CHG_STA_PIN);
         power_manager_->OnChargingStatusChanged([this](bool is_charging) {
             if (is_charging) {
                 power_save_timer_->SetEnabled(false);
@@ -53,9 +60,9 @@ private:
     }
 
     void InitializePowerSaveTimer() {
-        rtc_gpio_init(GPIO_NUM_21);
-        rtc_gpio_set_direction(GPIO_NUM_21, RTC_GPIO_MODE_OUTPUT_ONLY);
-        rtc_gpio_set_level(GPIO_NUM_21, 1);
+        // rtc_gpio_init(CHG_CTRL_PIN);
+        // rtc_gpio_set_direction(CHG_CTRL_PIN, RTC_GPIO_MODE_OUTPUT_ONLY);
+        // rtc_gpio_set_level(CHG_CTRL_PIN, 1);
 
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
         power_save_timer_->OnEnterSleepMode([this]() {
@@ -63,17 +70,21 @@ private:
             display_->SetChatMessage("system", "");
             display_->SetEmotion("sleepy");
             GetBacklight()->SetBrightness(1);
+            auto codec = GetAudioCodec();
+            codec->EnableInput(false);
         });
         power_save_timer_->OnExitSleepMode([this]() {
             display_->SetChatMessage("system", "");
             display_->SetEmotion("neutral");
             GetBacklight()->RestoreBrightness();
+            auto codec = GetAudioCodec();
+            codec->EnableInput(true);
         });
         power_save_timer_->OnShutdownRequest([this]() {
             ESP_LOGI(TAG, "Shutting down");
-            rtc_gpio_set_level(GPIO_NUM_21, 0);
-            // 启用保持功能，确保睡眠期间电平不变
-            rtc_gpio_hold_en(GPIO_NUM_21);
+            // rtc_gpio_set_level(CHG_CTRL_PIN, 0);
+            // // 启用保持功能，确保睡眠期间电平不变
+            // rtc_gpio_hold_en(CHG_CTRL_PIN);
             esp_lcd_panel_disp_on_off(panel_, false); //关闭显示
             esp_deep_sleep_start();
         });
@@ -92,36 +103,45 @@ private:
     }
 
     void InitializeButtons() {
-
+        
         boot_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                ResetWifiConfiguration();
-            }
             app.ToggleChatState();
         });
 
         asr_button_.OnClick([this]() {
+            power_save_timer_->WakeUp();
+            // auto& app = Application::GetInstance();
+            // app.ToggleChatState();
             std::string wake_word="你好小智";
             Application::GetInstance().WakeWordInvoke(wake_word);
         });
 
         asr_button_.OnDoubleClick([this]() {
+            power_save_timer_->WakeUp();
+            auto& app = Application::GetInstance();
+            if (GetNetworkType() == NetworkType::WIFI) {
+                if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                    // cast to WifiBoard
+                    auto& wifi_board = static_cast<WifiBoard&>(GetCurrentBoard());
+                    wifi_board.ResetWifiConfiguration();
+                }
+            }
+            app.ToggleChatState();
+        });
+
+        asr_button_.OnMultipleClick([this]() {
             auto& app = Application::GetInstance();
             app.Reboot();
         });
         
-        if (TOUCH_BUTTON_GPIO != GPIO_NUM_NC) {
-            touch_button_.OnPressDown([this]() {
-                Application::GetInstance().StartListening();
-            });
-
-            touch_button_.OnPressUp([this]() {
-                Application::GetInstance().StopListening();
-            });
-        }
-
+        asr_button_.OnLongPress([this]() {
+            SwitchNetType();
+            auto& app = Application::GetInstance();
+            app.Reboot();
+        });
+        
         volume_up_button_.OnClick([this]() {
             power_save_timer_->WakeUp();
             auto codec = GetAudioCodec();
@@ -198,11 +218,32 @@ private:
         led_strip_ = new CircularStrip(BUILTIN_LED_GPIO, 4);
         auto led_strip_control = new LedStripControl(led_strip_);
         thing_manager.AddThing(led_strip_control);
+        
+#ifdef CONFIG_ENABLE_SERVO
+        auto servo_control = new ServoControl(LEDC_SPEED_MODE, LEDC_TIMER, LEDC_FREQUENCY, LEDC_RESOLUTION,
+            LEDC_CHANNEL1, LEDC_CHANNEL2, LEDC_CHANNEL3, LEDC_CHANNEL4,
+            SERVO1_PIN, SERVO2_PIN, SERVO3_PIN, SERVO4_PIN);
+        auto lightningDog = new LightningDog(servo_control);
+        thing_manager.AddThing(lightningDog);
+#endif
+
+#ifdef CONFIG_ENABLE_GLASS
+        auto smart_glass_control = new SmartGlass(
+        ECHO_UART_PORT_NUM,
+        UART_ECHO_TXD,
+        UART_ECHO_RXD,
+        UART_ECHO_RTS,
+        UART_ECHO_CTS,
+        ECHO_UART_BAUD_RATE,
+        BUF_SIZE);
+        thing_manager.AddThing(smart_glass_control);
+#endif
     }
 
+#ifdef CONFIG_ENABLE_SD_CARD
     void InitializeSdCard() {
-        SdCardManager sd_card_manager(PIN_NUM_MOSI, PIN_NUM_MISO, PIN_NUM_CLK, PIN_NUM_CS , MOUNT_POINT);
-        esp_err_t ret = sd_card_manager.Init();
+        auto sd_card_manager = new SdCardManager(PIN_NUM_MOSI, PIN_NUM_MISO, PIN_NUM_CLK, PIN_NUM_CS , MOUNT_POINT);
+        esp_err_t ret = sd_card_manager->Init();
         int sd_card_status = 0;
         if (ret == ESP_OK) {
             sd_card_status = 1;
@@ -215,11 +256,12 @@ private:
         Settings settings("sc_card", true);
         settings.SetInt("enable", sd_card_status);
     }
-
+#endif
+//DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init()
 public:
-AiSpeakerWifiBoardLCD() :
+    AiSpeakerDualBoard() :
+        DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, ENABLE_4G_BUF_SIZE, (ENABLE_4G_MODULE ? 1 : 0)),
         boot_button_(BOOT_BUTTON_GPIO),
-        touch_button_(TOUCH_BUTTON_GPIO),
         asr_button_(ASR_BUTTON_GPIO),    
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO) {
@@ -275,8 +317,8 @@ AiSpeakerWifiBoardLCD() :
         if (!enabled) {
             power_save_timer_->WakeUp();
         }
-        WifiBoard::SetPowerSaveMode(enabled);
+        DualNetworkBoard::SetPowerSaveMode(enabled);
     }
 };
 
-DECLARE_BOARD(AiSpeakerWifiBoardLCD);
+DECLARE_BOARD(AiSpeakerDualBoard);

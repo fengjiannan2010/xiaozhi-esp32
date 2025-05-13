@@ -14,10 +14,8 @@
 #define AUDIO_I2S_SPK_GPIO_LRCK GPIO_NUM_16
 
 #define BUILTIN_LED_GPIO        GPIO_NUM_48
-#define TOUCH_BUTTON_GPIO       GPIO_NUM_NC
-#define ASR_BUTTON_GPIO         GPIO_NUM_47
-
 #define BOOT_BUTTON_GPIO        GPIO_NUM_0
+#define ASR_BUTTON_GPIO         GPIO_NUM_47
 #define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_39
 #define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_40
 
@@ -35,37 +33,56 @@
 #define BACKLIGHT_INVERT false
 #define DISPLAY_OFFSET_X  0
 #define DISPLAY_OFFSET_Y  0
-
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
+#define CHG_STA_PIN GPIO_NUM_38
+#define CHG_CTRL_PIN GPIO_NUM_21
 
+// 是否启用SD卡
+// 如果启用SD卡，定义SD卡的引脚和挂载点
+#ifdef CONFIG_ENABLE_SD_CARD
 #define PIN_NUM_MISO GPIO_NUM_1
 #define PIN_NUM_MOSI GPIO_NUM_2
 #define PIN_NUM_CLK GPIO_NUM_3
 #define PIN_NUM_CS GPIO_NUM_46
-#define EXAMPLE_MAX_CHAR_SIZE 64
 #define MOUNT_POINT "/sdcard"
+#endif
 
-// UART CONFIGURATION
-#define UART_ECHO_TXD GPIO_NUM_12
+// 是否启用舵机控制
+#ifdef CONFIG_ENABLE_SERVO
+// 定义 4 个舵机的 GPIO 引脚
+#define SERVO1_PIN GPIO_NUM_13      //左前
+#define SERVO2_PIN GPIO_NUM_14      //右前
+#define SERVO3_PIN GPIO_NUM_17      //左后
+#define SERVO4_PIN GPIO_NUM_18      //右后
+
+// 定义 LEDC 通道和定时器
+#define LEDC_TIMER LEDC_TIMER_3
+#define LEDC_SPEED_MODE LEDC_LOW_SPEED_MODE
+#define LEDC_FREQUENCY 50 // 舵机 PWM 频率 (50Hz)
+#define LEDC_RESOLUTION LEDC_TIMER_13_BIT // PWM 分辨率 (13 位)
+
+// 定义 LEDC CHANNEL
+#define LEDC_CHANNEL1 LEDC_CHANNEL_1
+#define LEDC_CHANNEL2 LEDC_CHANNEL_2
+#define LEDC_CHANNEL3 LEDC_CHANNEL_3
+#define LEDC_CHANNEL4 LEDC_CHANNEL_4
+#endif
+
+// 是否启用智能玻璃控制和4G模块,智能玻璃控制和4G模块使用同一个串口,智能启用一个
+#ifdef CONFIG_ENABLE_GLASS
 #define UART_ECHO_RXD GPIO_NUM_11
-
+#define UART_ECHO_TXD GPIO_NUM_12
 #define UART_ECHO_RTS (-1)
 #define UART_ECHO_CTS (-1)
 #define ECHO_UART_PORT_NUM      UART_NUM_1
 #define ECHO_UART_BAUD_RATE     (115200)
 #define BUF_SIZE                (1024)
-
-typedef enum {
-    LIGHT_MODE_CHARGING_BREATH = 0,
-    LIGHT_MODE_POWER_LOW,
-    LIGHT_MODE_ALWAYS_ON,
-    LIGHT_MODE_BLINK,
-    LIGHT_MODE_WHITE_BREATH_SLOW,
-    LIGHT_MODE_WHITE_BREATH_FAST,
-    LIGHT_MODE_FLOWING,
-    LIGHT_MODE_SHOW,
-    LIGHT_MODE_SLEEP,
-    LIGHT_MODE_MAX
-} light_mode_t;
+#define ENABLE_4G_MODULE false
+#else
+#define ENABLE_4G_MODULE true
+#define ENABLE_4G_BUF_SIZE 4096
+#define ML307_RX_PIN GPIO_NUM_11
+#define ML307_TX_PIN GPIO_NUM_12
+#endif
 
 #endif // _BOARD_CONFIG_H_

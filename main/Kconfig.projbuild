@@ -39,11 +39,7 @@ choice BOARD_TYPE
     config BOARD_TYPE_BREAD_COMPACT_ESP32_LCD
         bool "面包板（WiFi+ LCD） ESP32 DevKit"
     config BOARD_TYPE_AI_SPEAKER_WIFI_LCD
-        bool "S3AiSpeaker（WiFi）+ LCD"
-    config BOARD_TYPE_AI_SPEAKER_WIFI_BOT
-        bool "S3AiSpeaker（WiFi）+ BOT"
-    config BOARD_TYPE_AI_SPEAKER_ML307_BOT
-        bool "S3AiSpeaker（ML307 AT）+ BOT"
+        bool "S3AiSpeaker（Dual）+ LCD"
     config BOARD_TYPE_ESP32_CGC
         bool "ESP32 CGC"
     config BOARD_TYPE_ESP_BOX_3
@@ -236,12 +232,6 @@ choice DISPLAY_ESP32S3_KORVO2_V3
         bool "ILI9341, 分辨率240*320"
 endchoice
 
-config ENABLE_SD_CARD
-    bool "启用SD卡"
-    default n
-    help
-        需要 SD 卡支持
-
 config USE_WAKE_WORD_DETECT
     bool "启用唤醒词检测"
     default y
@@ -262,5 +252,26 @@ config USE_REALTIME_CHAT
     depends on USE_AUDIO_PROCESSOR && (BOARD_TYPE_ESP_BOX_3 || BOARD_TYPE_ESP_BOX || BOARD_TYPE_ESP_BOX_LITE || BOARD_TYPE_LICHUANG_DEV || BOARD_TYPE_ESP32S3_KORVO2_V3)
     help
         需要 ESP32 S3 与 AEC 开启，因为性能不够，不建议和微信聊天界面风格同时开启
+
+config ENABLE_SD_CARD
+    bool "启用SD卡"
+    default n
+    depends on BOARD_TYPE_AI_SPEAKER_WIFI_LCD
+    help
+        需要 SD 卡支持
+
+config ENABLE_SERVO
+    bool "启用舵机"
+    default n
+    depends on BOARD_TYPE_AI_SPEAKER_WIFI_LCD
+    help
+        需要舵机支持
+
+config ENABLE_GLASS
+    bool "启用智能玻璃"
+    default n
+    depends on BOARD_TYPE_AI_SPEAKER_WIFI_LCD
+    help
+        需要智能玻璃支持
         
 endmenu
