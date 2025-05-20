@@ -29,6 +29,9 @@
 #include "lightning_dog.h"
 #endif
 
+#define PRESS_DURATION_MS 50  // 单次按压持续时间（毫秒）
+#define INTERVAL_MS       300 // 两次按压间隔时间（毫秒）
+
 #define TAG "AiSpeakerDualBoard"
 
 LV_FONT_DECLARE(font_puhui_20_4);
@@ -60,9 +63,11 @@ private:
     }
 
     void InitializePowerSaveTimer() {
-        // rtc_gpio_init(CHG_CTRL_PIN);
-        // rtc_gpio_set_direction(CHG_CTRL_PIN, RTC_GPIO_MODE_OUTPUT_ONLY);
-        // rtc_gpio_set_level(CHG_CTRL_PIN, 1);
+        if (WAKEUP_PIN != GPIO_NUM_NC) {
+            rtc_gpio_init(WAKEUP_PIN);
+            rtc_gpio_set_direction(WAKEUP_PIN, RTC_GPIO_MODE_OUTPUT_ONLY);
+            rtc_gpio_set_level(WAKEUP_PIN, 1);
+        }
 
         power_save_timer_ = new PowerSaveTimer(-1, 60, 300);
         power_save_timer_->OnEnterSleepMode([this]() {
@@ -82,11 +87,18 @@ private:
         });
         power_save_timer_->OnShutdownRequest([this]() {
             ESP_LOGI(TAG, "Shutting down");
-            // rtc_gpio_set_level(CHG_CTRL_PIN, 0);
-            // // 启用保持功能，确保睡眠期间电平不变
-            // rtc_gpio_hold_en(CHG_CTRL_PIN);
-            esp_lcd_panel_disp_on_off(panel_, false); //关闭显示
-            esp_deep_sleep_start();
+            if (WAKEUP_PIN != GPIO_NUM_NC) {
+                rtc_gpio_set_level(WAKEUP_PIN, 0);
+                // 启用保持功能，确保睡眠期间电平不变
+                rtc_gpio_hold_en(WAKEUP_PIN);
+            }
+
+            if (CHG_CTRL_PIN != GPIO_NUM_NC) {
+                SimulateDoubleClick(CHG_CTRL_PIN);
+            } else {
+                esp_lcd_panel_disp_on_off(panel_, false); //关闭显示
+                esp_deep_sleep_start();
+            }
         });
         power_save_timer_->SetEnabled(true);
     }
@@ -286,6 +298,37 @@ private:
     }
 #endif
 
+    void SimulateClick(gpio_num_t gpio_num,int duration_ms) {
+        gpio_set_level(gpio_num, 0);    // 模拟按下（拉低电平）
+        vTaskDelay(pdMS_TO_TICKS(duration_ms));
+        gpio_set_level(gpio_num, 1);    // 模拟释放（恢复高电平）
+    }
+
+    void SimulateDoubleClick(gpio_num_t gpio_num) {
+        // 第一次按键操作
+        SimulateClick(gpio_num,PRESS_DURATION_MS);
+        vTaskDelay(pdMS_TO_TICKS(INTERVAL_MS));
+        // 第二次按键操作
+        SimulateClick(gpio_num,PRESS_DURATION_MS);
+    }
+
+    void InitializePowerControl() {
+        if (CHG_CTRL_PIN == GPIO_NUM_NC){
+            return;
+        }
+
+        // 初始化充电引脚
+        gpio_config_t io_conf = {};
+        io_conf.intr_type = GPIO_INTR_DISABLE;      // 禁用中断
+        io_conf.mode = GPIO_MODE_OUTPUT;            // 设置为输出模式
+        io_conf.pin_bit_mask = 1ULL << CHG_CTRL_PIN;  // 设置引脚 掩码
+        io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;   // 禁用内部下拉
+        io_conf.pull_up_en = GPIO_PULLUP_ENABLE;     // 启用内部上拉
+        gpio_config(&io_conf);
+        gpio_set_level(CHG_CTRL_PIN, 1);     // 初始化为高电平（释放状态）
+    }
+
+
 public:
     AiSpeakerDualBoard() :
         DualNetworkBoard(ML307_TX_PIN, ML307_RX_PIN, BUF_SIZE, 0),
@@ -302,6 +345,7 @@ public:
         InitializeButtons();
         InitializeSt7789Display();  
         InitializeIot();
+        InitializePowerControl();
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->RestoreBrightness();
         }

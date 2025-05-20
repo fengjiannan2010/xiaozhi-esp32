@@ -45,7 +45,9 @@ private:
 
     void CheckBatteryStatus() {
         // Get charging status
-        bool new_charging_status = gpio_get_level(charging_pin_) == 1;
+        // bool new_charging_status = gpio_get_level(charging_pin_) == 1;
+
+        bool new_charging_status = false;
 
         // 检测是否为脉冲状态（高低跳变）
         // bool new_charging_status = detect_charging_pulse();  // 检测0.5Hz脉冲
@@ -127,12 +129,12 @@ private:
                 }
             }
         }
-        auto display = Board::GetInstance().GetDisplay();
+        //auto display = Board::GetInstance().GetDisplay();
         char message[128];
         snprintf(message, sizeof(message), "ADC value: %d average: %ld level: %ld charging: %s",
                  adc_value, average_adc, battery_level_,is_charging_ ? "true" : "false");
         // 显示电池电量信息
-        display->SetChatMessage("system", message);
+        //display->SetChatMessage("system", message);
         ESP_LOGI("PowerManager", "ADC value: %d average: %ld level: %ld", adc_value, average_adc, battery_level_);
     }
 

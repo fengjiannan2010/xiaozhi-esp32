@@ -35,7 +35,8 @@
 #define DISPLAY_OFFSET_Y  0
 #define DISPLAY_BACKLIGHT_OUTPUT_INVERT false
 #define CHG_STA_PIN GPIO_NUM_38
-#define CHG_CTRL_PIN GPIO_NUM_21
+#define CHG_CTRL_PIN GPIO_NUM_NC  //GOIO33
+#define WAKEUP_PIN GPIO_NUM_NC
 
 // 是否启用SD卡
 // 如果启用SD卡，定义SD卡的引脚和挂载点
@@ -69,7 +70,6 @@
 #endif
 
 // 是否启用智能玻璃控制和4G模块,智能玻璃控制和4G模块使用同一个串口,智能启用一个
-#ifdef CONFIG_ENABLE_GLASS
 #define ML307_RX_PIN GPIO_NUM_11
 #define ML307_TX_PIN GPIO_NUM_12
 #define UART_ECHO_RTS (-1)
@@ -77,6 +77,8 @@
 #define ECHO_UART_PORT_NUM      UART_NUM_1
 #define ECHO_UART_BAUD_RATE     (115200)
 #define BUF_SIZE                (4096)
+
+#ifdef CONFIG_ENABLE_GLASS
 #define ENABLE_4G_MODULE false
 #else
 #define ENABLE_4G_MODULE true
