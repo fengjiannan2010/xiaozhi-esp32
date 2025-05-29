@@ -9,6 +9,20 @@
 #include <lvgl.h>
 #include <atomic>
 
+// Theme color structure
+struct ThemeColors {
+    lv_color_t background;
+    lv_color_t text;
+    lv_color_t chat_background;
+    lv_color_t user_bubble;
+    lv_color_t assistant_bubble;
+    lv_color_t system_bubble;
+    lv_color_t system_text;
+    lv_color_t border;
+    lv_color_t low_battery;
+};
+
+
 class LcdDisplay : public Display {
 protected:
     esp_lcd_panel_io_handle_t panel_io_ = nullptr;
@@ -19,8 +33,10 @@ protected:
     lv_obj_t* content_ = nullptr;
     lv_obj_t* container_ = nullptr;
     lv_obj_t* side_bar_ = nullptr;
+    lv_obj_t* preview_image_ = nullptr;
 
     DisplayFonts fonts_;
+    ThemeColors current_theme_;
 
     int current_frame_ = 0;
     EventGroupHandle_t emotion_event_group_;
@@ -47,8 +63,7 @@ protected:
     void SetAnimationEmotion(const char* emotion);
 protected:
     // 添加protected构造函数
-    LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, DisplayFonts fonts)
-        : panel_io_(panel_io), panel_(panel), fonts_(fonts) {}
+    LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_t panel, DisplayFonts fonts, int width, int height);
     
 public:
     ~LcdDisplay();
@@ -63,6 +78,7 @@ public:
     EmotionAnimation current_animation_;
     virtual void UpdateEmotionFrame();
     uint8_t* LoadRGB565Frame(const char* frame_path);
+    virtual void SetPreviewImage(const lv_img_dsc_t* img_dsc) override;
     // Add theme switching function
     virtual void SetTheme(const std::string& theme_name) override; 
 };

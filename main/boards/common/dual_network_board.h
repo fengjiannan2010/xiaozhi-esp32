@@ -23,10 +23,9 @@ private:
     gpio_num_t ml307_tx_pin_;
     gpio_num_t ml307_rx_pin_;
     size_t ml307_rx_buffer_size_;
-    int default_network_type_ = 0; // 默认网络类型
     
     // 从Settings加载网络类型
-    NetworkType LoadNetworkTypeFromSettings();
+    NetworkType LoadNetworkTypeFromSettings(int32_t default_net_type = 0);
     
     // 保存网络类型到Settings
     void SaveNetworkTypeToSettings(NetworkType type);
@@ -57,7 +56,7 @@ public:
     virtual const char* GetNetworkStateIcon() override;
     virtual void SetPowerSaveMode(bool enabled) override;
     virtual std::string GetBoardJson() override;
-    
+    virtual std::string GetDeviceStatusJson() override;
 };
 
 #endif // DUAL_NETWORK_BOARD_H 
