@@ -7,7 +7,8 @@
             "sdkconfig_append": [
                 "CONFIG_ENABLE_SD_CARD=n",
                 "CONFIG_ENABLE_SERVO=n",
-                "CONFIG_ENABLE_GLASS=n"
+                "CONFIG_ENABLE_GLASS=n",
+                "CONFIG_IOT_PROTOCOL_XIAOZHI=y"
             ]
         },
         {
@@ -16,7 +17,8 @@
             "sdkconfig_append": [
                 "CONFIG_ENABLE_SD_CARD=y",
                 "CONFIG_ENABLE_SERVO=n",
-                "CONFIG_ENABLE_GLASS=n"
+                "CONFIG_ENABLE_GLASS=n",
+                "CONFIG_IOT_PROTOCOL_XIAOZHI=y"
             ]
         },
         {
@@ -25,7 +27,8 @@
             "sdkconfig_append": [
                 "CONFIG_ENABLE_SD_CARD=n",
                 "CONFIG_ENABLE_SERVO=y",
-                "CONFIG_ENABLE_GLASS=n"
+                "CONFIG_ENABLE_GLASS=n",
+                "CONFIG_IOT_PROTOCOL_XIAOZHI=y"
             ]
         },
         {
@@ -34,7 +37,8 @@
             "sdkconfig_append": [
                 "CONFIG_ENABLE_SD_CARD=n",
                 "CONFIG_ENABLE_SERVO=n",
-                "CONFIG_ENABLE_GLASS=y"
+                "CONFIG_ENABLE_GLASS=y",
+                "CONFIG_IOT_PROTOCOL_XIAOZHI=y"
             ]
         }
     ]

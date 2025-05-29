@@ -8,7 +8,7 @@
 #include "esp_err.h"
 #include <string.h> // Add this line for memcpy()
 #include "driver/ledc.h"
-#include "iot_servo.h"
+#include "servo.h"
 
 static const char *TAG = "servo";
 

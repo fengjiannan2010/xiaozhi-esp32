@@ -5,7 +5,7 @@
 #include "board.h"
 #include "freertos/FreeRTOS.h" // FreeRTOS 核心头文件
 #include "freertos/task.h"     // FreeRTOS 任务相关头文件
-#include "iot_servo.h"
+#include "servo.h"
 #include <driver/gpio.h>
 #include <esp_log.h>
 #include <cstring>

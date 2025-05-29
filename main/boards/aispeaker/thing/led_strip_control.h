@@ -1,27 +1,13 @@
-#include "led_strip_control.h"
-#include "settings.h"
+
+#include "iot/thing.h"
+#include "led/circular_strip.h"
 #include <esp_log.h>
 
-#define TAG "LedStripControl"
+using namespace iot;
 
-
-int LedStripControl::LevelToBrightness(int level) const {
-    if (level < 0) level = 0;
-    if (level > 4) level = 4;
-    return (1 << level) - 1;  // 2^n - 1
-}
-
-StripColor LedStripControl::RGBToColor(int red, int green, int blue) {
-    if (red < 0) red = 0;
-    if (red > 255) red = 255;
-    if (green < 0) green = 0;
-    if (green > 255) green = 255;
-    if (blue < 0) blue = 0;
-    if (blue > 255) blue = 255;
-    return {static_cast<uint8_t>(red), static_cast<uint8_t>(green), static_cast<uint8_t>(blue)};
-}
-
-LedStripControl::LedStripControl(CircularStrip* led_strip) 
+class LedStripControl : public Thing {
+public:
+    explicit LedStripControl(CircularStrip* led_strip) 
     : Thing("LedStripControl", "LED 灯带控制，一共有4个灯珠,默认执行闪烁动画"), led_strip_(led_strip) {
     // 从设置中读取亮度等级
     Settings settings("led_strip");
@@ -38,7 +24,7 @@ LedStripControl::LedStripControl(CircularStrip* led_strip)
         Parameter("level", "亮度等级(0-4)", kValueTypeNumber, true)
     }), [this](const ParameterList& parameters) {
         int level = static_cast<int>(parameters["level"].number());
-        ESP_LOGI(TAG, "Set LedStrip brightness level to %d", level);
+        ESP_LOGI("LedStripControl", "Set LedStrip brightness level to %d", level);
         
         if (level < 0) level = 0;
         if (level > 4) level = 4;
@@ -63,7 +49,7 @@ LedStripControl::LedStripControl(CircularStrip* led_strip)
             parameters["green"].number(),
             parameters["blue"].number()
         );
-        ESP_LOGI(TAG, "Set led strip single color %d to %d, %d, %d",
+        ESP_LOGI("LedStripControl", "Set led strip single color %d to %d, %d, %d",
             index, color.red, color.green, color.blue);
         led_strip_->SetSingleColor(index, color);
     });
@@ -78,7 +64,7 @@ LedStripControl::LedStripControl(CircularStrip* led_strip)
             parameters["green"].number(),
             parameters["blue"].number()
         );
-        ESP_LOGI(TAG, "Set led strip color to %d, %d, %d",
+        ESP_LOGI("LedStripControl", "Set led strip color to %d, %d, %d",
             color.red, color.green, color.blue
         );
         led_strip_->SetAllColor(color);
@@ -96,7 +82,7 @@ LedStripControl::LedStripControl(CircularStrip* led_strip)
             parameters["green"].number(),
             parameters["blue"].number()
         );
-        ESP_LOGI(TAG, "Blink led strip with color %d, %d, %d, interval %dms",
+        ESP_LOGI("LedStripControl", "Blink led strip with color %d, %d, %d, interval %dms",
             color.red, color.green, color.blue, interval);
         led_strip_->Blink(color, interval);
     });
@@ -116,8 +102,29 @@ LedStripControl::LedStripControl(CircularStrip* led_strip)
             parameters["green"].number(),
             parameters["blue"].number()
         );
-        ESP_LOGI(TAG, "Scroll led strip with color %d, %d, %d, length %d, interval %dms",
+        ESP_LOGI("LedStripControl", "Scroll led strip with color %d, %d, %d, length %d, interval %dms",
             high.red, high.green, high.blue, length, interval);
         led_strip_->Scroll(low, high, length, interval);
     });
 }
+
+private:
+    CircularStrip* led_strip_;
+    int brightness_level_;  // 亮度等级 (0-8)
+
+    int LevelToBrightness(int level) const {
+        if (level < 0) level = 0;
+        if (level > 4) level = 4;
+        return (1 << level) - 1;  // 2^n - 1
+    }
+
+    StripColor RGBToColor(int red, int green, int blue) {
+        if (red < 0) red = 0;
+        if (red > 255) red = 255;
+        if (green < 0) green = 0;
+        if (green > 255) green = 255;
+        if (blue < 0) blue = 0;
+        if (blue > 255) blue = 255;
+        return {static_cast<uint8_t>(red), static_cast<uint8_t>(green), static_cast<uint8_t>(blue)};
+    }
+};

@@ -5,8 +5,9 @@
 #include "application.h"
 #include "button.h"
 #include "config.h"
+
 #include "power_save_timer.h"
-#include "iot/thing_manager.h"
+
 #include "led/single_led.h"
 #include "assets/lang_config.h"
 #include "power_manager.h"
@@ -19,14 +20,25 @@
 #include <esp_sleep.h>
 #include "sdcard_manager.h"
 #include "led/circular_strip.h"
-#include "led_strip_control.h"
 
-#ifdef CONFIG_ENABLE_GLASS
-#include "smart_glass.h"
-#endif
-
-#ifdef CONFIG_ENABLE_SERVO
-#include "lightning_dog.h"
+#if CONFIG_IOT_PROTOCOL_XIAOZHI
+    #include "iot/thing_manager.h"
+    #include "thing/led_strip_control.h"
+    #if CONFIG_ENABLE_GLASS
+    #include "thing/smart_glass.h"
+    #endif
+    #if CONFIG_ENABLE_SERVO
+    #include "thing/lightning_dog.h"
+    #endif
+#elif CONFIG_IOT_PROTOCOL_MCP
+    #include "mcp_server.h"
+    #include "mcp/led_strip_control.h"
+    #if CONFIG_ENABLE_GLASS
+    #include "mcp/smart_glass.h"
+    #endif
+    #if CONFIG_ENABLE_SERVO
+    #include "mcp/lightning_dog.h"
+    #endif
 #endif
 
 #define PRESS_DURATION_MS 50  // 单次按压持续时间（毫秒）
@@ -251,15 +263,17 @@ private:
     }
 
     void InitializeIot() {
+        
+#if CONFIG_IOT_PROTOCOL_XIAOZHI
         auto& thing_manager = iot::ThingManager::GetInstance();
         thing_manager.AddThing(iot::CreateThing("Speaker"));
         thing_manager.AddThing(iot::CreateThing("Screen"));
         thing_manager.AddThing(iot::CreateThing("Battery"));
+
         led_strip_ = new CircularStrip(BUILTIN_LED_GPIO, 4);
         auto led_strip_control = new LedStripControl(led_strip_);
         thing_manager.AddThing(led_strip_control);
-        
-#ifdef CONFIG_ENABLE_SERVO
+#if CONFIG_ENABLE_SERVO
         auto servo_control = new ServoControl(LEDC_SPEED_MODE, LEDC_TIMER, LEDC_FREQUENCY, LEDC_RESOLUTION,
             LEDC_CHANNEL1, LEDC_CHANNEL2, LEDC_CHANNEL3, LEDC_CHANNEL4,
             SERVO1_PIN, SERVO2_PIN, SERVO3_PIN, SERVO4_PIN);
@@ -267,7 +281,7 @@ private:
         thing_manager.AddThing(lightningDog);
 #endif
 
-#ifdef CONFIG_ENABLE_GLASS
+#if CONFIG_ENABLE_GLASS
         auto smart_glass_control = new SmartGlass(
         ECHO_UART_PORT_NUM,
         ML307_TX_PIN,
@@ -278,6 +292,29 @@ private:
         BUF_SIZE);
         thing_manager.AddThing(smart_glass_control);
 #endif
+
+#elif CONFIG_IOT_PROTOCOL_MCP
+        led_strip_ = new CircularStrip(BUILTIN_LED_GPIO, 4);
+        auto led_strip_control = new LedStripControl(led_strip_);
+#if CONFIG_ENABLE_SERVO
+        auto servo_control = new ServoControl(LEDC_SPEED_MODE, LEDC_TIMER, LEDC_FREQUENCY, LEDC_RESOLUTION,
+            LEDC_CHANNEL1, LEDC_CHANNEL2, LEDC_CHANNEL3, LEDC_CHANNEL4,
+            SERVO1_PIN, SERVO2_PIN, SERVO3_PIN, SERVO4_PIN);
+        auto lightningDog = new LightningDog(servo_control);
+#endif
+
+#if CONFIG_ENABLE_GLASS
+        auto smart_glass_control = new SmartGlass(
+        ECHO_UART_PORT_NUM,
+        ML307_TX_PIN,
+        ML307_RX_PIN,
+        UART_ECHO_RTS,
+        UART_ECHO_CTS,
+        ECHO_UART_BAUD_RATE,
+        BUF_SIZE);
+#endif
+
+#endif 
     }
 
 #ifdef CONFIG_ENABLE_SD_CARD
