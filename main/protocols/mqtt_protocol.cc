@@ -42,6 +42,7 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
     auto client_id = settings.GetString("client_id");
     auto username = settings.GetString("username");
     auto password = settings.GetString("password");
+    int keepalive_interval = settings.GetInt("keepalive", 120);
     publish_topic_ = settings.GetString("publish_topic");
 
     if (endpoint.empty()) {
@@ -53,7 +54,7 @@ bool MqttProtocol::StartMqttClient(bool report_error) {
     }
 
     mqtt_ = Board::GetInstance().CreateMqtt();
-    mqtt_->SetKeepAlive(90);
+    mqtt_->SetKeepAlive(keepalive_interval);
 
     mqtt_->OnDisconnected([this]() {
         ESP_LOGI(TAG, "Disconnected from endpoint");
@@ -227,6 +228,8 @@ bool MqttProtocol::OpenAudioChannel() {
         auto nonce = (uint8_t*)data.data();
         auto encrypted = (uint8_t*)data.data() + aes_nonce_.size();
         AudioStreamPacket packet;
+        packet.sample_rate = server_sample_rate_;
+        packet.frame_duration = server_frame_duration_;
         packet.timestamp = timestamp;
         packet.payload.resize(decrypted_size);
         int ret = mbedtls_aes_crypt_ctr(&aes_ctx_, decrypted_size, &nc_off, nonce, stream_block, encrypted, (uint8_t*)packet.payload.data());

@@ -21,10 +21,8 @@
 #include "ota.h"
 #include "background_task.h"
 #include "audio_processor.h"
-
-#if CONFIG_USE_WAKE_WORD_DETECT
-#include "wake_word_detect.h"
-#endif
+#include "wake_word.h"
+#include "audio_debugger.h"
 
 #define SCHEDULE_EVENT (1 << 0)
 #define SEND_AUDIO_EVENT (1 << 1)
@@ -46,11 +44,13 @@ enum DeviceState {
     kDeviceStateSpeaking,
     kDeviceStateUpgrading,
     kDeviceStateActivating,
+    kDeviceStateAudioTesting,
     kDeviceStateFatalError
 };
 
 #define OPUS_FRAME_DURATION_MS 60
 #define MAX_AUDIO_PACKETS_IN_QUEUE (2400 / OPUS_FRAME_DURATION_MS)
+#define AUDIO_TESTING_MAX_DURATION_MS 10000
 
 class Application {
 public:
@@ -81,15 +81,15 @@ public:
     void SendMcpMessage(const std::string& payload);
     void SetAecMode(AecMode mode);
     AecMode GetAecMode() const { return aec_mode_; }
+    BackgroundTask* GetBackgroundTask() const { return background_task_; }
 
 private:
     Application();
     ~Application();
 
-#if CONFIG_USE_WAKE_WORD_DETECT
-    WakeWordDetect wake_word_detect_;
-#endif
+    std::unique_ptr<WakeWord> wake_word_;
     std::unique_ptr<AudioProcessor> audio_processor_;
+    std::unique_ptr<AudioDebugger> audio_debugger_;
     Ota ota_;
     std::mutex mutex_;
     std::list<std::function<void()>> main_tasks_;
@@ -113,11 +113,11 @@ private:
     std::list<AudioStreamPacket> audio_send_queue_;
     std::list<AudioStreamPacket> audio_decode_queue_;
     std::condition_variable audio_decode_cv_;
+    std::list<AudioStreamPacket> audio_testing_queue_;
 
     // 新增：用于维护音频包的timestamp队列
     std::list<uint32_t> timestamp_queue_;
     std::mutex timestamp_mutex_;
-    std::atomic<uint32_t> last_output_timestamp_ = 0;
 
     std::unique_ptr<OpusEncoderWrapper> opus_encoder_;
     std::unique_ptr<OpusDecoderWrapper> opus_decoder_;
@@ -129,7 +129,7 @@ private:
     void MainEventLoop();
     void OnAudioInput();
     void OnAudioOutput();
-    void ReadAudio(std::vector<int16_t>& data, int sample_rate, int samples);
+    bool ReadAudio(std::vector<int16_t>& data, int sample_rate, int samples);
     void ResetDecoder();
     void SetDecodeSampleRate(int sample_rate, int frame_duration);
     void CheckNewVersion();
@@ -137,6 +137,8 @@ private:
     void OnClockTimer();
     void SetListeningMode(ListeningMode mode);
     void AudioLoop();
+    void EnterAudioTestingMode();
+    void ExitAudioTestingMode();
 };
 
 #endif // _APPLICATION_H_
